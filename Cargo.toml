@@ -1,0 +1,33 @@
+[workspace]
+members = ["crates/soundlock-dsp"]
+resolver = "2"
+
+[package]
+name = "sound-lock"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "A Windows tray app for quieter peaks, clearer quiet scenes and up to 4x gain"
+license = "MIT"
+
+[features]
+screenshot = ["eframe/__screenshot"]
+
+[dependencies]
+anyhow = "1"
+cpal = "=0.17.3"
+eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "accesskit"] }
+rtrb = "=0.3.2"
+raw-window-handle = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+soundlock-dsp = { path = "crates/soundlock-dsp" }
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = { version = "=0.21.3", default-features = false }
+windows = { version = "0.61", features = ["Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

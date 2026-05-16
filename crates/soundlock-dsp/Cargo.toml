@@ -1,0 +1,7 @@
+[package]
+name = "soundlock-dsp"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+description = "Allocation-free stereo dynamics processor for Sound Lock"
