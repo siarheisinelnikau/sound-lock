@@ -49,7 +49,7 @@ impl App {
         style.visuals.window_fill = CARD;
         style.visuals.override_text_color = Some(TEXT);
         style.visuals.selection.bg_fill = MINT.gamma_multiply(0.35);
-        style.visuals.selection.stroke = Stroke::new(1.0, MINT);
+        style.visuals.selection.stroke = Stroke::new(1.0_f32, MINT);
         style.visuals.widgets.active.bg_fill = Color32::from_rgb(41, 79, 71);
         style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(39, 52, 65);
         style.visuals.widgets.inactive.bg_fill = Color32::from_rgb(31, 41, 54);
@@ -207,7 +207,7 @@ impl App {
                 let c = rect.center() + Vec2::new(x, 0.0);
                 ui.painter().line_segment(
                     [c - Vec2::new(0.0, h), c + Vec2::new(0.0, h)],
-                    Stroke::new(2.5, BG),
+                    Stroke::new(2.5_f32, BG),
                 );
             }
             ui.label(RichText::new("sound lock").size(22.0).strong());
