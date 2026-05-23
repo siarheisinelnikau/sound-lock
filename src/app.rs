@@ -1,6 +1,7 @@
 use crate::{
     audio::{self, Devices, Engine, Shared},
     config::{Config, Mode, Source},
+    driver,
     system::Guard,
     tray::{Action, Tray},
 };
@@ -24,6 +25,13 @@ enum Active {
     Bridge(Engine),
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum SetupPage {
+    #[default]
+    Audio,
+    Driver,
+}
+
 pub struct App {
     config: Config,
     devices: Devices,
@@ -32,6 +40,8 @@ pub struct App {
     tray: Option<Tray>,
     error: Option<String>,
     setup: bool,
+    setup_page: SetupPage,
+    driver: driver::Setup,
     dirty: bool,
     last_edit: Instant,
     quitting: bool,
@@ -82,6 +92,8 @@ impl App {
             tray,
             error,
             setup: false,
+            setup_page: SetupPage::Audio,
+            driver: driver::Setup::default(),
             dirty: false,
             last_edit: Instant::now(),
             quitting: false,
@@ -253,11 +265,15 @@ impl App {
                     .color(MUTED),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(
-                        RichText::new(if system { "NO DRIVER" } else { "UP TO 4×" })
-                            .size(10.0)
-                            .color(MINT),
-                    );
+                    if system {
+                        if ui.small_button(RichText::new("DRIVER-FREE").size(10.0).color(MINT))
+                            .on_hover_text("This mode needs no driver. Click for optional VB-CABLE setup and full 400% processing.").clicked() {
+                            self.setup_page = SetupPage::Driver;
+                            self.setup = true;
+                        }
+                    } else {
+                        ui.label(RichText::new("UP TO 4×").size(10.0).color(MINT));
+                    }
                 });
             });
             let value = if system {
@@ -367,15 +383,15 @@ impl App {
             });
         });
     }
-    fn setup_ui(&mut self, ui: &mut egui::Ui) {
+    fn audio_setup_ui(&mut self, ui: &mut egui::Ui) {
         let running = self.active.is_some();
         ui.add_enabled_ui(!running, |ui| {
             if self.config.source == Source::Bridge {
-                ui.label("Source output (must be inaudible)");
+                ui.label("Source output · spare device or VB-CABLE");
                 let name = device_label(
                     &self.devices,
                     self.config.input_id.as_ref(),
-                    "Choose a spare output",
+                    "Choose a source output",
                 );
                 let mut changed = false;
                 egui::ComboBox::from_id_salt("source")
@@ -430,11 +446,12 @@ impl App {
         }
         ui.separator();
         if self.config.source == Source::Windows {
-            ui.label("Works directly with Windows volume controls. No routing, extension or driver installation.");
-            ui.label(RichText::new("Reactive peak reduction only: it cannot boost beyond the device's maximum or catch the first transient. Your starting volume is the upper bound and is restored on Stop/Quit.").color(MUTED).size(12.0));
+            ui.label("Reduces peaks through Windows volume controls. No extra driver required.");
+            ui.label(RichText::new("For full leveling and 400% gain, use Boost + leveling with optional VB-CABLE or a spare output.").color(MUTED).size(12.0));
+            ui.label(RichText::new("Stop/Quit restores your starting volume. This mode cannot boost above it or anticipate transients.").color(MUTED).size(12.0));
         } else {
-            ui.label("Route your browser/player to an unused, inaudible output, such as HDMI without speakers. Select that device as Source and your headphones as Listening device.");
-            ui.label(RichText::new("Requires two different outputs. Leave the source unmuted; its original audio must be inaudible. No automatic suppression or routing. With only one output, use System limiter.").color(AMBER).size(12.0));
+            ui.label("Send the browser to the device shown as Source: VB-CABLE or an unused, inaudible output. Listen on your headphones.");
+            ui.label(RichText::new("Keep the source unmuted and separate from the listening device. Restore the browser's normal output after stopping.").color(MUTED).size(12.0));
             if ui.button("Open Windows volume mixer").clicked()
                 && let Err(e) = open_mixer()
             {
@@ -446,14 +463,147 @@ impl App {
         }
         if let Some(error) = &self.error {
             ui.separator();
-            ui.colored_label(AMBER, error);
+            ui.add(egui::Label::new(RichText::new(error).color(AMBER)).truncate())
+                .on_hover_text(error);
         }
-        ui.label(RichText::new("Close the main window to keep processing in the tray. Quit restores system volume. Force-killing the app cannot run restoration.").size(11.0).color(MUTED));
+    }
+    fn driver_setup_ui(&mut self, ui: &mut egui::Ui) {
+        let endpoint = audio::vb_cable_source(&self.devices).cloned();
+        let detected = endpoint.is_some();
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("VB-CABLE").strong());
+            ui.label(
+                RichText::new(if detected { "Detected" } else { "Not detected" })
+                    .color(if detected { MINT } else { MUTED }),
+            );
+        });
+        ui.label("Optional virtual output for full leveling and 400% gain without a spare physical output.");
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(
+                    !self.driver.busy(),
+                    egui::Button::new(if self.driver.downloading() {
+                        "Downloading…"
+                    } else {
+                        "Download driver"
+                    }),
+                )
+                .clicked()
+            {
+                self.driver.download(ui.ctx());
+            }
+            if ui
+                .add_enabled(
+                    self.driver.downloaded()
+                        && !self.driver.busy()
+                        && !detected
+                        && self.active.is_none(),
+                    egui::Button::new(if self.driver.installing() {
+                        "Installer open…"
+                    } else {
+                        "Install driver…"
+                    }),
+                )
+                .clicked()
+            {
+                // Preserve the physical listening device before the vendor's
+                // installer/reboot can change Windows defaults.
+                match self.config.save() {
+                    Ok(()) => self.driver.install(ui.ctx()),
+                    Err(error) => {
+                        self.driver.error = Some(format!(
+                            "Could not save audio settings before setup: {error}"
+                        ))
+                    }
+                }
+            }
+        });
+        if self.driver.busy() {
+            ui.spinner();
+        }
+        ui.label(RichText::new(self.driver.message).size(11.0).color(MUTED));
+        if let Some(error) = &self.driver.error {
+            ui.add(egui::Label::new(RichText::new(error).size(11.0).color(AMBER)).truncate())
+                .on_hover_text(error);
+        }
+        ui.hyperlink_to("Official website & license", driver::WEBSITE);
+        ui.separator();
+        ui.label(RichText::new("Installation opens the vendor's setup with Windows UAC. Administrator access and a Windows restart are required.").size(12.0).color(MUTED));
+        if self.active.is_some() {
+            ui.label(
+                RichText::new("Stop processing before installing or changing the route.")
+                    .size(11.0)
+                    .color(AMBER),
+            );
+        }
+        ui.horizontal(|ui| {
+            if ui.button("Refresh devices").clicked() {
+                self.refresh_devices();
+            }
+            if ui
+                .add_enabled(
+                    detected && self.active.is_none() && !self.driver.busy(),
+                    egui::Button::new("Use VB-CABLE"),
+                )
+                .clicked()
+                && let Some(endpoint) = endpoint
+            {
+                self.config.source = Source::Bridge;
+                self.config.input_id = Some(endpoint.id);
+                self.changed();
+                self.setup_page = SetupPage::Audio;
+            }
+        });
+        ui.label(RichText::new("After restart: Refresh devices, Use VB-CABLE, then match the browser output to Source in Windows Volume Mixer.").size(11.0).color(MUTED));
+    }
+    fn show_setup_modal(&mut self, ctx: &egui::Context) -> Option<egui::Rect> {
+        if !self.setup {
+            return None;
+        }
+        let response = egui::Modal::new(egui::Id::new("audio_setup_modal"))
+            .backdrop_color(Color32::from_black_alpha(170))
+            .frame(card(16.0))
+            .show(ctx, |ui| {
+                ui.set_width(350.0);
+                let mut close = false;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Audio setup").size(18.0).strong());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        close = ui.small_button("Close").clicked();
+                    });
+                });
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut self.setup_page, SetupPage::Audio, "Audio");
+                    ui.selectable_value(
+                        &mut self.setup_page,
+                        SetupPage::Driver,
+                        "Driver (optional)",
+                    );
+                });
+                ui.separator();
+                match self.setup_page {
+                    SetupPage::Audio => self.audio_setup_ui(ui),
+                    SetupPage::Driver => self.driver_setup_ui(ui),
+                }
+                close
+            });
+        // Backdrop clicks are swallowed, not used to dismiss the dialog or
+        // activate the controls underneath. Escape first closes any open combo.
+        let escape = response.is_top_modal
+            && !response.any_popup_open
+            && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+        if response.inner || escape {
+            self.setup = false;
+        }
+        Some(response.response.rect)
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        if self.driver.poll() {
+            self.refresh_devices();
+        }
         for action in self.tray.as_ref().map(|t| t.poll()).unwrap_or_default() {
             self.action(action, ctx);
         }
@@ -495,7 +645,7 @@ impl eframe::App for App {
                 } else if self.config.source == Source::Windows {
                     "Ready · no driver required"
                 } else {
-                    "Audio bridge · two outputs required"
+                    "Audio bridge · VB-CABLE or spare output"
                 };
                 ui.label(
                     RichText::new(status)
@@ -544,17 +694,7 @@ impl eframe::App for App {
                     });
                 });
             });
-        if self.setup {
-            let mut open = true;
-            egui::Window::new("Audio setup")
-                .open(&mut open)
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .default_width(350.0)
-                .show(ctx, |ui| self.setup_ui(ui));
-            self.setup = open;
-        }
+        let _ = self.show_setup_modal(ctx);
         if self.hidden && !self.quitting {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
@@ -592,4 +732,149 @@ fn open_mixer() -> anyhow::Result<()> {
             .spawn()?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Event, PointerButton, Pos2, Rect, Shape};
+
+    fn app() -> App {
+        App {
+            config: Config::default(),
+            devices: Devices::default(),
+            shared: Arc::new(Shared::default()),
+            active: None,
+            tray: None,
+            error: None,
+            setup: false,
+            setup_page: SetupPage::Audio,
+            driver: driver::Setup::default(),
+            dirty: false,
+            last_edit: Instant::now(),
+            quitting: false,
+            input_level: 0.0,
+            reduction: 0.0,
+            hidden: false,
+        }
+    }
+    fn frame(
+        ctx: &egui::Context,
+        app: &mut App,
+        events: Vec<Event>,
+        time: &mut f64,
+    ) -> (egui::FullOutput, Option<Rect>) {
+        *time += 0.1;
+        let mut modal = None;
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(420.0, 446.0))),
+                time: Some(*time),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| app.profiles(ui));
+                modal = app.show_setup_modal(ctx);
+            },
+        );
+        (output, modal)
+    }
+    fn text_position(shape: &Shape, value: &str) -> Option<Pos2> {
+        match shape {
+            Shape::Text(text) if text.galley.text() == value => {
+                Some(text.pos + text.galley.size() * 0.5)
+            }
+            Shape::Vec(shapes) => shapes.iter().find_map(|s| text_position(s, value)),
+            _ => None,
+        }
+    }
+    fn click(ctx: &egui::Context, app: &mut App, pos: Pos2, time: &mut f64) {
+        for pressed in [true, false] {
+            frame(
+                ctx,
+                app,
+                vec![
+                    Event::PointerMoved(pos),
+                    Event::PointerButton {
+                        pos,
+                        button: PointerButton::Primary,
+                        pressed,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                time,
+            );
+        }
+    }
+    #[test]
+    fn modal_dims_and_blocks_real_profile_controls_until_closed() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        let mut time = 0.0;
+        let (output, _) = frame(&ctx, &mut app, vec![], &mut time);
+        let speakers = output
+            .shapes
+            .iter()
+            .find_map(|s| text_position(&s.shape, "Speakers"))
+            .unwrap();
+        app.setup = true;
+        frame(&ctx, &mut app, vec![], &mut time);
+        let (output, _) = frame(&ctx, &mut app, vec![], &mut time);
+        assert!(output.shapes.iter().any(
+            |s| matches!(&s.shape, Shape::Rect(rect) if rect.fill == Color32::from_black_alpha(170))
+        ));
+        click(&ctx, &mut app, speakers, &mut time);
+        assert_eq!(
+            app.config.mode,
+            Mode::Night,
+            "Background profile must not receive the click"
+        );
+        assert!(app.setup, "A backdrop click must not dismiss the modal");
+        frame(
+            &ctx,
+            &mut app,
+            vec![Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            &mut time,
+        );
+        assert!(!app.setup);
+        for _ in 0..2 {
+            frame(&ctx, &mut app, vec![], &mut time);
+        }
+        click(&ctx, &mut app, speakers, &mut time);
+        assert_eq!(
+            app.config.mode,
+            Mode::Speakers,
+            "Controls must work after the modal closes"
+        );
+    }
+    #[test]
+    fn both_setup_pages_fit_the_fixed_viewport_without_scrolling() {
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(420.0, 446.0));
+        for (page, source) in [
+            (SetupPage::Audio, Source::Windows),
+            (SetupPage::Audio, Source::Bridge),
+            (SetupPage::Driver, Source::Windows),
+        ] {
+            let ctx = egui::Context::default();
+            let mut app = app();
+            app.setup = true;
+            app.setup_page = page;
+            app.config.source = source;
+            let mut time = 0.0;
+            frame(&ctx, &mut app, vec![], &mut time);
+            let (_, modal) = frame(&ctx, &mut app, vec![], &mut time);
+            assert!(
+                screen.contains_rect(modal.unwrap()),
+                "Dialog must fit: {:?}",
+                modal
+            );
+        }
+    }
 }

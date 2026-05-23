@@ -3,6 +3,7 @@
 mod app;
 mod audio;
 mod config;
+mod driver;
 mod system;
 mod tray;
 

@@ -33,6 +33,21 @@ pub fn is_virtual(name: &str) -> bool {
         .any(|part| name.contains(part))
 }
 
+pub fn is_vb_cable(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.contains("vb-audio virtual cable") || name == "cable input"
+}
+
+pub fn vb_cable_source(devices: &Devices) -> Option<&Endpoint> {
+    // Pack 45 exposes both the standard input and a separate 16-channel input.
+    // Prefer the endpoint named in the normal Windows mixer setup instructions.
+    devices
+        .outputs
+        .iter()
+        .filter(|d| is_vb_cable(&d.name))
+        .min_by_key(|d| !d.name.to_ascii_lowercase().starts_with("cable input"))
+}
+
 fn device_name(device: &Device) -> Result<String> {
     let description = device.description()?;
     // WASAPI puts the complete FriendlyName (with driver/model) in extended.
@@ -422,6 +437,28 @@ mod tests {
         assert!(is_virtual("CABLE Output (VB-Audio Virtual Cable)"));
         assert!(is_virtual("Voicemeeter Output"));
         assert!(!is_virtual("Headphones (Realtek Audio)"));
+        assert!(is_vb_cable("CABLE Input (VB-Audio Virtual Cable)"));
+        assert!(is_vb_cable("CABLE Input"));
+        assert!(!is_vb_cable("Voicemeeter Input"));
+    }
+    #[test]
+    fn driver_route_prefers_standard_input_over_alternate_16_channel_pin() {
+        let devices = Devices {
+            outputs: vec![
+                Endpoint {
+                    id: "alternate".into(),
+                    name: "CABLE In 16ch (VB-Audio Virtual Cable)".into(),
+                    cable: true,
+                },
+                Endpoint {
+                    id: "standard".into(),
+                    name: "CABLE Input (VB-Audio Virtual Cable)".into(),
+                    cable: true,
+                },
+            ],
+            default_output: None,
+        };
+        assert_eq!(vb_cable_source(&devices).unwrap().id, "standard");
     }
     #[test]
     fn empty_capture_produces_silence_without_blocking() {

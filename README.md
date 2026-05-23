@@ -2,14 +2,14 @@
 
 **Steady sound for movies.** A standalone Windows tray app written in Rust, with a compact English interface, one main slider and Night / Headphones / Speakers profiles.
 
-No browser extension, virtual audio driver, administrator access or VB-CABLE installation is required. The two processing paths have different capabilities:
+System limiter works without a browser extension, extra driver or administrator access. **Optional VB-CABLE setup is available inside the app** for full processing without a spare physical output. The two processing paths have different capabilities:
 
 | Mode | Setup | What it does | Limit |
 |---|---|---|---|
 | **System limiter** (default) | Select your listening device | Reactively turns loud scenes down using Windows Core Audio; returns toward your starting volume afterward | Cannot amplify beyond the device maximum or catch the first transient |
-| **Boost + leveling** | Route the player to an existing, unused and inaudible second output | Real PCM leveling, compression, up to **400% (4× / +12.04 dB)** gain, and a 5 ms look-ahead sample-peak limiter | Requires two different outputs; does not silence the original source device |
+| **Boost + leveling** | Route the player to optional VB-CABLE or an existing inaudible output | Real PCM leveling, compression, up to **400% (4× / +12.04 dB)** gain, and a 5 ms look-ahead sample-peak limiter | Requires a separate source endpoint; VB-CABLE provides it when only one physical listening device is available |
 
-This is an early working prototype. It does **not** promise transparent system-wide 400% boost on a single output device. Ordinary WASAPI loopback captures playback without replacing it. See [Microsoft's loopback documentation](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording).
+This is an early working prototype. Without an optional virtual driver or spare output it does **not** provide transparent system-wide 400% boost on a single endpoint. Ordinary WASAPI loopback captures playback without replacing it. See [Microsoft's loopback documentation](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording).
 
 ## Build and run
 
@@ -31,6 +31,26 @@ This mode reads the endpoint's pre-volume peak meter and temporarily attenuates 
 
 It is a reactive volume controller, **not a sample-accurate limiter**. The meter reports the preceding device period, and the worker polls every 10 ms. Exclusive-mode streams may bypass software metering or volume control on some hardware. [Microsoft documents the meter placement](https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudiometerinformation) and [endpoint volume behavior](https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudioendpointvolume).
 
+## Optional VB-CABLE setup
+
+Open **Setup > Driver (optional)**, or click the **DRIVER-FREE** badge to see the optional path. That badge describes System limiter, not a restriction on the whole app.
+
+1. Click **Download driver**. Sound Lock downloads Pack 45 from the [official VB-Audio website](https://vb-audio.com/Cable/) and verifies its checksum. Downloading never launches an installer.
+2. Click **Install driver…** separately. Sound Lock unpacks the complete package, verifies the setup executable's Windows signature, and opens the vendor's interactive installer with Windows UAC. Administrator access is required. Complete the vendor's setup yourself; no silent installation or automatic acceptance of license terms is performed.
+3. Restart Windows, open the same panel and click **Refresh devices**, then **Use VB-CABLE**. This selects **Boost + leveling** with **CABLE Input** as its loopback source. Keep your real headphones/speakers as **Listening device**.
+4. In Windows Volume Mixer, set the browser/player output to **CABLE Input**. Start processing in Sound Lock. Leave VB-CABLE's Loopback option enabled (the Pack 45 default).
+
+```text
+Browser/player -> CABLE Input (virtual, inaudible)
+              -> Sound Lock DSP -> your headphones/speakers
+```
+
+Sound Lock captures the playback endpoint **CABLE Input**, not the recording endpoint CABLE Output. This is supported by VB-CABLE's loopback mode; see the [vendor's reference manual](https://vb-audio.com/Cable/VBCABLE_ReferenceManual.pdf). A second physical output is not needed with this route.
+
+The installer itself can change Windows' default sound devices. Check those defaults after reboot. Sound Lock never changes the browser's route automatically; restore its normal output after stopping. An already detected VB-CABLE disables the install button, so opening setup does not inadvertently offer removal.
+
+The driver is third-party software with [VB-Audio's own license](https://vb-audio.com/Services/licensing.htm); it is downloaded directly and is not bundled or relicensed under this repository's MIT license. Cached packages and extracted installer companions are kept in `%LOCALAPPDATA%\SoundLock\drivers\vb-cable-45`. If the vendor replaces the archive, checksum verification fails rather than launching unexpected content; the official website remains available as a fallback.
+
 ## Boost + leveling without installing a driver
 
 Use an **already existing, inaudible second playback output**, such as an unused HDMI monitor endpoint without audible speakers:
@@ -46,7 +66,7 @@ Browser/player -> unused playback output -> WASAPI loopback
 4. Leave the source unmuted. Its original playback must be inaudible; loopback does not suppress it. Source and listening devices must differ to avoid feedback.
 5. Start processing and raise gain gradually from 100%.
 
-If the source is audible you will hear both versions. Muting or zeroing that endpoint can also silence loopback on some devices, so it is not a reliable replacement for an inaudible source. Sound Lock does not change routing or install devices. After stopping, return the browser to its ordinary output. With only one usable output, use **System limiter**.
+If the source is audible you will hear both versions. Muting or zeroing that endpoint can also silence loopback on some devices, so it is not a reliable replacement for an inaudible source. Sound Lock does not change routing automatically. After stopping, return the browser to its ordinary output. With only one usable output, use **System limiter** or the optional VB-CABLE route above.
 
 The DSP is stereo-linked and includes gated upward leveling, a soft-knee compressor, smoothed manual gain and a sample-peak limiter. It raises quiet dialogue along with other quiet material; it does **not** separate speech from music/effects. 400% describes amplitude gain before limiting, not four times perceived loudness or a guarantee that already loud audio can become four times louder without distortion.
 
@@ -80,9 +100,15 @@ Offline DSP demonstration; opens no audio devices:
 cargo run -p soundlock-dsp --example render_demo -- .local/demo
 ```
 
-Creates `before.wav` and `after.wav` from synthetic quiet scenes and bursts. This validates dynamics, not speech recognition or subjective movie quality. Audio is processed locally. The app records nothing and makes no network requests; only the explicit offline example writes generated audio.
+Creates `before.wav` and `after.wav` from synthetic quiet scenes and bursts. This validates dynamics, not speech recognition or subjective movie quality. Audio is processed locally and is never uploaded or recorded. Optional driver setup downloads the official package over HTTPS and uses Windows signature verification; only the explicit offline example writes generated audio.
 
-Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values and stable device identifiers persist. Processing does not start automatically. There is no installer, executable signing or Windows autostart yet.
+The normal test suite covers modal shading, blocked background input, dialog fit, archive extraction and malformed packages. An additional network-dependent check downloads and prepares the real driver package **without running its installer**:
+
+```powershell
+cargo test --locked driver::tests::official_package_prepares_without_installation -- --ignored
+```
+
+Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values and stable device identifiers persist. Processing does not start automatically. Audio and Driver setup use a modal with a dimmed, inactive background; close it with **Close** or Esc. There is no Sound Lock application installer, executable signing or Windows autostart yet.
 
 See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) and [actual validation results](docs/validation.md). CI builds a Windows executable artifact.
 
@@ -95,6 +121,7 @@ src/audio.rs           WASAPI loopback bridge, queue and resampling
 src/app.rs             fixed-size, English-only egui interface
 src/tray.rs            Windows tray menu and direct HWND restoration
 src/config.rs          profiles and persisted settings
+src/driver.rs          optional official driver download and interactive setup
 ```
 
 Inspired by [Sound Lock from 3 APPES](https://www.3appes.com/en/sound-lock/). This is an independent implementation, not affiliated with 3 APPES. Browser-extension work belongs in a separate project.
