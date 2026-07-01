@@ -1,7 +1,7 @@
 use crate::{
     audio::{self, Devices, Engine, Shared},
     config::{Config, Mode, Source},
-    driver,
+    driver, routing,
     system::Guard,
     tray::{Action, Tray},
 };
@@ -36,6 +36,8 @@ pub struct App {
     config: Config,
     devices: Devices,
     shared: Arc<Shared>,
+    routing: routing::Service,
+    route_status: String,
     active: Option<Active>,
     tray: Option<Tray>,
     error: Option<String>,
@@ -88,6 +90,8 @@ impl App {
             config,
             devices: Devices::default(),
             shared: Arc::new(Shared::default()),
+            routing: routing::Service::new(),
+            route_status: String::new(),
             active: None,
             tray,
             error,
@@ -155,6 +159,11 @@ impl App {
                         .any(|d| Some(&d.id) == self.config.input_id.as_ref())))
     }
     fn stop(&mut self) {
+        // Restore the original destination before tearing down the PCM bridge.
+        if let Err(error) = self.routing.stop() {
+            self.error = Some(format!("{error:#}"));
+        }
+        self.route_status.clear();
         self.active = None;
         self.input_level = 0.0;
         self.reduction = 0.0;
@@ -182,6 +191,17 @@ impl App {
         };
         match result {
             Ok(active) => {
+                if self.config.source == Source::Bridge
+                    && self.config.auto_route_browser
+                    && let Err(error) = self.routing.start(
+                        self.config.browser,
+                        self.config.input_id.as_deref().unwrap_or_default(),
+                        output,
+                    )
+                {
+                    self.error = Some(format!("{error:#}"));
+                    return; // Engine drops only after routing rollback.
+                }
                 self.active = Some(active);
                 self.error = None;
             }
@@ -440,6 +460,31 @@ impl App {
                 self.refresh_devices();
                 self.changed();
             }
+            if self.config.source == Source::Bridge {
+                let mut changed = false;
+                ui.horizontal(|ui| {
+                    changed |= ui
+                        .checkbox(&mut self.config.auto_route_browser, "Auto-route browser")
+                        .changed();
+                    egui::ComboBox::from_id_salt("browser")
+                        .width(100.0)
+                        .selected_text(self.config.browser.label())
+                        .show_ui(ui, |ui| {
+                            for browser in routing::Browser::ALL {
+                                changed |= ui
+                                    .selectable_value(
+                                        &mut self.config.browser,
+                                        browser,
+                                        browser.label(),
+                                    )
+                                    .changed();
+                            }
+                        });
+                });
+                if changed {
+                    self.changed();
+                }
+            }
         });
         if running {
             ui.label(RichText::new("Stop processing before changing devices.").color(AMBER));
@@ -450,8 +495,12 @@ impl App {
             ui.label(RichText::new("For full leveling and 400% gain, use Boost + leveling with optional VB-CABLE or a spare output.").color(MUTED).size(12.0));
             ui.label(RichText::new("Stop/Quit restores your starting volume. This mode cannot boost above it or anticipate transients.").color(MUTED).size(12.0));
         } else {
-            ui.label("Send the browser to the device shown as Source: VB-CABLE or an unused, inaudible output. Listen on your headphones.");
-            ui.label(RichText::new("Keep the source unmuted and separate from the listening device. Restore the browser's normal output after stopping.").color(MUTED).size(12.0));
+            ui.label(if self.config.auto_route_browser {
+                "Start sends browser audio to Source. Stop or Quit restores its previous output. Start playback if waiting for browser audio."
+            } else {
+                "Route the browser to Source in Windows Volume Mixer. Restore its normal output manually after stopping."
+            });
+            ui.label(RichText::new("Keep Source unmuted and inaudible. Listening device must be your headphones or speakers.").color(MUTED).size(12.0));
             if ui.button("Open Windows volume mixer").clicked()
                 && let Err(e) = open_mixer()
             {
@@ -459,7 +508,11 @@ impl App {
             }
         }
         if let Some(Active::Bridge(engine)) = &self.active {
-            ui.label(RichText::new(&engine.description).size(10.0).color(MUTED));
+            ui.add(
+                egui::Label::new(RichText::new(&engine.description).size(10.0).color(MUTED))
+                    .truncate(),
+            )
+            .on_hover_text(&engine.description);
         }
         if let Some(error) = &self.error {
             ui.separator();
@@ -554,7 +607,7 @@ impl App {
                 self.setup_page = SetupPage::Audio;
             }
         });
-        ui.label(RichText::new("After restart: Refresh devices, Use VB-CABLE, then match the browser output to Source in Windows Volume Mixer.").size(11.0).color(MUTED));
+        ui.label(RichText::new("After restart: Refresh devices, Use VB-CABLE, select your browser in Audio, then Start processing.").size(11.0).color(MUTED));
     }
     fn show_setup_modal(&mut self, ctx: &egui::Context) -> Option<egui::Rect> {
         if !self.setup {
@@ -607,6 +660,15 @@ impl eframe::App for App {
         for action in self.tray.as_ref().map(|t| t.poll()).unwrap_or_default() {
             self.action(action, ctx);
         }
+        for event in self.routing.poll() {
+            match event {
+                routing::Event::Status(status) => self.route_status = status,
+                routing::Event::Error(error) => {
+                    self.stop();
+                    self.error = Some(error);
+                }
+            }
+        }
         if ctx.input(|i| i.viewport().close_requested()) && !self.quitting && self.tray.is_some() {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.hidden = true;
@@ -640,6 +702,8 @@ impl eframe::App for App {
                 self.meters(ui);
                 let status = if self.error.is_some() {
                     "Audio needs attention · open Setup"
+                } else if !self.route_status.is_empty() {
+                    &self.route_status
                 } else if self.active.is_some() {
                     "Processing on this device"
                 } else if self.config.source == Source::Windows {
@@ -744,6 +808,8 @@ mod tests {
             config: Config::default(),
             devices: Devices::default(),
             shared: Arc::new(Shared::default()),
+            routing: routing::Service::disabled(),
+            route_status: String::new(),
             active: None,
             tray: None,
             error: None,

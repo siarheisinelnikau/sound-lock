@@ -45,6 +45,8 @@ pub struct Config {
     pub output_id: Option<String>,
     pub source: Source,
     pub peak_limit: f32,
+    pub auto_route_browser: bool,
+    pub browser: crate::routing::Browser,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,6 +66,8 @@ impl Default for Config {
             output_id: None,
             source: Source::Windows,
             peak_limit: 50.0,
+            auto_route_browser: true,
+            browser: crate::routing::Browser::Chrome,
         }
     }
 }
