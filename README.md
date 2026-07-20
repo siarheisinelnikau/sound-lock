@@ -13,6 +13,8 @@ This is an early working prototype. Without an optional virtual driver or spare 
 
 ## Build and run
 
+Portable Windows x64 downloads are available on the [Releases page](https://github.com/siarheisinelnikau/sound-lock/releases). Extract the ZIP and run `sound-lock.exe`; it includes README and the license. Release assets also include a standalone EXE and SHA-256 checksums.
+
 Requirements: Windows 10/11 x64, a current stable [Rust MSVC toolchain](https://rustup.rs/), and Visual Studio Build Tools with **Desktop development with C++**.
 
 ```powershell
@@ -127,6 +129,8 @@ cargo test --locked driver::tests::official_package_prepares_without_installatio
 Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values and stable device identifiers persist. Processing does not start automatically. Audio and Driver setup use a modal with a dimmed, inactive background; close it with **Close** or Esc. There is no Sound Lock application installer, executable signing or Windows autostart yet.
 
 See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) and [actual validation results](docs/validation.md). CI builds a Windows executable artifact.
+
+To publish a version, update Cargo's version/lockfile and `docs/releases/VERSION.md`, then push a commit whose first line is exactly `Release vVERSION` to `main`. Alternatively, run the Windows workflow on `main` with **publish_release** enabled. Publishing waits for formatting, Clippy, tests and the Windows release build; a separate job packages that exact artifact and publishes a draft only after its assets upload. Existing published releases are never overwritten.
 
 ## Source layout
 
