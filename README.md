@@ -23,6 +23,16 @@ cargo run --release --locked
 
 Executable: `target\release\sound-lock.exe`. The built executable runs without Rust installed. Processing starts only when you press **Start processing**. Closing the window hides it in the tray. Use **Open Sound Lock** or a left click on the tray icon to restore it; **Quit** exits.
 
+## Updates
+
+Open **Setup > Updates** to see the installed version and check GitHub. **Check for updates on launch** is enabled by default and can be turned off. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights the Setup button. Prereleases and downgrades are not offered.
+
+Click **Download update**, then **Restart & update** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Downloads never run themselves. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
+
+If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads are staged in `%LOCALAPPDATA%\SoundLock\updates`, with installation/recovery files in a private `sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `update.log`/`old.exe` for diagnosis or manual restoration.
+
+Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Version 0.1.2 has no updater; install 0.1.3 manually once to enable future in-app updates.**
+
 ## System limiter
 
 1. Keep your browser/player on its normal output.
@@ -114,7 +124,7 @@ cargo run -p soundlock-dsp --example render_demo -- .local/demo
 
 Creates `before.wav` and `after.wav` from synthetic quiet scenes and bursts. This validates dynamics, not speech recognition or subjective movie quality. Audio is processed locally and is never uploaded or recorded. Optional driver setup downloads the official package over HTTPS and uses Windows signature verification; only the explicit offline example writes generated audio.
 
-The normal test suite covers modal behavior, audio processing, transactional routing and recovery, and package handling. An opt-in native policy check switches and restores **only the test executable's own** preferences using an unstarted, silent audio session:
+The normal test suite covers modal behavior, audio processing, transactional routing/recovery, update validation/replacement and package handling. An opt-in native policy check switches and restores **only the test executable's own** preferences using an unstarted, silent audio session:
 
 ```powershell
 cargo test --locked routing::windows::tests::real_policy_roundtrip_restores_own_process_preferences -- --ignored
@@ -126,7 +136,17 @@ An additional network-dependent check prepares the real driver package **without
 cargo test --locked driver::tests::official_package_prepares_without_installation -- --ignored
 ```
 
-Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values and stable device identifiers persist. Processing does not start automatically. Audio and Driver setup use a modal with a dimmed, inactive background; close it with **Close** or Esc. There is no Sound Lock application installer, executable signing or Windows autostart yet.
+Updater checks against real native helper processes replace and restart **only temporary fixture apps**, including a failed-startup rollback. Windows CI runs these after building its release EXE. For a local check:
+
+```powershell
+$env:SOUND_LOCK_TEST_EXE = (Resolve-Path target/release/sound-lock.exe).Path
+cargo test --locked update::install::tests::native_helper_ -- --ignored
+cargo test --locked update::tests::official_github_release_download_verifies_without_installing -- --ignored
+```
+
+The last command downloads/verifies the latest public release without installing or executing it.
+
+Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values, update-check preference and stable device identifiers persist. Processing does not start automatically. Audio, Driver and Updates settings use a modal with a dimmed, inactive background; close it with **Close** or Esc. There is no Sound Lock application installer, executable signing or Windows autostart yet.
 
 See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) and [actual validation results](docs/validation.md). CI builds a Windows executable artifact.
 
@@ -143,6 +163,7 @@ src/tray.rs            Windows tray menu and direct HWND restoration
 src/config.rs          profiles and persisted settings
 src/driver.rs          optional official driver download and interactive setup
 src/routing/           per-browser audio policy, durable recovery and ownership lock
+src/update/            GitHub release checking, verified downloads and native self-update
 ```
 
 Inspired by [Sound Lock from 3 APPES](https://www.3appes.com/en/sound-lock/). This is an independent implementation, not affiliated with 3 APPES. Browser-extension work belongs in a separate project.

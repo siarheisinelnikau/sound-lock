@@ -7,8 +7,23 @@ mod driver;
 mod routing;
 mod system;
 mod tray;
+mod update;
 
 fn main() -> eframe::Result {
+    if let Some(result) = update::helper_entry() {
+        if let Err(error) = result {
+            eprintln!("{error:#}");
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+    let startup = match update::Startup::from_args() {
+        Ok(startup) => startup,
+        Err(error) => {
+            eprintln!("{error:#}");
+            std::process::exit(1);
+        }
+    };
     if std::env::args().any(|arg| arg == "--probe-routing") {
         if let Err(e) = routing::probe() {
             eprintln!("{e:#}");
@@ -54,6 +69,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Sound Lock",
         options,
-        Box::new(|cc| Ok(Box::new(app::App::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(app::App::new(cc, startup)))),
     )
 }

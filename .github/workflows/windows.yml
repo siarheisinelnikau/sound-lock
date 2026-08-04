@@ -26,6 +26,10 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo build --release --locked
+      - name: Verify updater replacement and rollback on temporary apps
+        env:
+          SOUND_LOCK_TEST_EXE: ${{ github.workspace }}\target\release\sound-lock.exe
+        run: cargo test --locked update::install::tests::native_helper_ -- --ignored
       - uses: actions/upload-artifact@v7
         with:
           name: sound-lock-windows-x64
