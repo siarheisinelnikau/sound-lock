@@ -24,6 +24,35 @@ fn versions_compare_numerically_and_never_offer_downgrades() {
     assert!(parse(&metadata("0.1.3"), "0.1.3").unwrap().is_none());
     assert!(parse(&metadata("1.0.0"), "0.99.99").unwrap().is_some());
 }
+
+#[test]
+fn canonical_asset_names_are_preferred_and_old_releases_remain_readable() {
+    let mut data = metadata("0.1.4");
+    let legacy = data["assets"][0].clone();
+    let canonical = "SoundLock-v0.1.4.exe";
+    data["assets"][0]["name"] = canonical.into();
+    data["assets"][0]["browser_download_url"] =
+        format!("{RELEASES}/download/v0.1.4/{canonical}").into();
+    assert_eq!(parse(&data, "0.1.3").unwrap().unwrap().exe.name, canonical);
+    data["assets"].as_array_mut().unwrap().push(legacy);
+    assert_eq!(parse(&data, "0.1.3").unwrap().unwrap().exe.name, canonical);
+    data["assets"][0]["browser_download_url"] = "https://example.com/other.exe".into();
+    assert!(
+        parse(&data, "0.1.3").is_err(),
+        "An invalid canonical asset must not silently fall back"
+    );
+    assert!(parse(&metadata("0.1.3"), "0.1.2").unwrap().is_some());
+    let mut multi = metadata("0.1.4");
+    let x64 = "SoundLock-v0.1.4-x64.exe";
+    multi["assets"][0]["name"] = x64.into();
+    multi["assets"][0]["browser_download_url"] = format!("{RELEASES}/download/v0.1.4/{x64}").into();
+    let mut arm = multi["assets"][0].clone();
+    arm["name"] = "SoundLock-v0.1.4-arm64.exe".into();
+    arm["browser_download_url"] =
+        format!("{RELEASES}/download/v0.1.4/SoundLock-v0.1.4-arm64.exe").into();
+    multi["assets"].as_array_mut().unwrap().push(arm);
+    assert_eq!(parse(&multi, "0.1.3").unwrap().unwrap().exe.name, x64);
+}
 #[test]
 fn only_published_stable_releases_and_complete_assets_are_offered() {
     for key in ["draft", "prerelease"] {

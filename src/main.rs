@@ -2,10 +2,14 @@
 
 mod app;
 mod audio;
+#[cfg(feature = "ui-capture")]
+mod capture;
 mod config;
 mod driver;
+mod popup;
 mod routing;
 mod system;
+mod theme;
 mod tray;
 mod update;
 
@@ -57,7 +61,9 @@ fn main() -> eframe::Result {
     }
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([420.0, 446.0])
+            .with_title(popup::SETTINGS_TITLE)
+            .with_inner_size(popup::SETTINGS_SIZE)
+            .with_visible(std::env::args().any(|arg| arg == "--settings"))
             .with_resizable(false)
             .with_icon(eframe::egui::IconData {
                 rgba: tray::icon_rgba(64),
@@ -69,6 +75,6 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Sound Lock",
         options,
-        Box::new(move |cc| Ok(Box::new(app::App::new(cc, startup)))),
+        Box::new(move |cc| Ok(Box::new(app::Application::new(app::App::new(cc, startup))))),
     )
 }

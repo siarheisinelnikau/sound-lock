@@ -404,7 +404,6 @@ impl Service {
             worker: Some(worker),
         }
     }
-    #[cfg(test)]
     pub fn disabled() -> Self {
         Self {
             commands: None,

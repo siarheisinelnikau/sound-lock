@@ -1,6 +1,6 @@
 # Sound Lock
 
-**Steady sound for movies.** A standalone Windows tray app written in Rust, with a compact English interface, one main slider and Night / Headphones / Speakers profiles.
+**Steady sound for movies.** A standalone Windows tray app written in Rust, with a compact English tray popup, one main slider and Night / Headphones / Speakers profiles.
 
 System limiter works without a browser extension, extra driver or administrator access. **Optional VB-CABLE setup is available inside the app** for full processing without a spare physical output. The two processing paths have different capabilities:
 
@@ -11,33 +11,47 @@ System limiter works without a browser extension, extra driver or administrator 
 
 This is an early working prototype. Without an optional virtual driver or spare output it does **not** provide transparent system-wide 400% boost on a single endpoint. Ordinary WASAPI loopback captures playback without replacing it. See [Microsoft's loopback documentation](https://learn.microsoft.com/en-us/windows/win32/coreaudio/loopback-recording).
 
+## Screenshots
+
+Real application captures in preview mode, with simulated devices and no audio changes.
+
+![Tray sound controls with volume, profiles, leveling and Start/Stop](docs/screenshots/tray-popup.png)
+
+![Audio settings with source, listening device and automatic browser routing](docs/screenshots/audio-settings.png)
+
+![Update settings with startup checking and in-app download and installation](docs/screenshots/update-settings.png)
+
 ## Build and run
 
-Portable Windows x64 downloads are available on the [Releases page](https://github.com/siarheisinelnikau/sound-lock/releases). Extract the ZIP and run `sound-lock.exe`; it includes README and the license. Release assets also include a standalone EXE and SHA-256 checksums.
+Portable Windows x64 downloads are available on the [Releases page](https://github.com/siarheisinelnikau/sound-lock/releases). Extract the ZIP and run `sound-lock.exe`; it includes README and the license. Release assets also include `SoundLock-vVERSION.exe` and SHA-256 checksums. The single executable targets Windows x64; its name has no architecture suffix.
 
-Requirements: Windows 10/11 x64, a current stable [Rust MSVC toolchain](https://rustup.rs/), and Visual Studio Build Tools with **Desktop development with C++**.
+Requirements: Windows 10/11 x64, Rust 1.95+ with an [MSVC toolchain](https://rustup.rs/), and Visual Studio Build Tools with **Desktop development with C++**.
 
 ```powershell
 cargo run --release --locked
 ```
 
-Executable: `target\release\sound-lock.exe`. The built executable runs without Rust installed. Processing starts only when you press **Start processing**. Closing the window hides it in the tray. Use **Open Sound Lock** or a left click on the tray icon to restore it; **Quit** exits.
+Executable: `target\release\sound-lock.exe`. The built executable runs without Rust installed. Processing starts only when you press **Start**. A left click on the tray icon toggles the 368 × 304 quick panel: volume, profiles, leveling and Start/Stop. Clicking outside or pressing Esc dismisses it while audio keeps running. **Settings** opens a separate window for Audio, Driver and Updates; closing Settings leaves the app in the tray. Right-click the icon for sound controls, settings, update checks and Quit.
+
+## Tray workflow
+
+The normal launch opens only the quick popup near the tray icon. `sound-lock.exe --startup` starts quietly in the tray; `--settings` opens Settings instead. These switches do not register Windows autostart. The graphitic palette uses Segoe UI when installed and a muted blue accent. Popup placement stays within the work area of the tray monitor, including side/top taskbars and negative monitor coordinates.
 
 ## Updates
 
-Open **Setup > Updates** to see the installed version and check GitHub. **Check for updates on launch** is enabled by default and can be turned off. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights the Setup button. Prereleases and downgrades are not offered.
+Open **Settings > Updates** to see the installed version and use **Check for updates**. **Check for updates on startup** is enabled by default and can be turned off; the saved opt-out prevents startup requests. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights Settings in the popup and appears in the tray menu/tooltip. Startup checks never open no-update or network-error dialogs. Prereleases and downgrades are not offered.
 
-Click **Download update**, then **Restart & update** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Downloads never run themselves. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
+Click **Download and install** to download, verify and install the update, then restart. **Install later** defers the restart while the download continues; afterward use **Restart & install** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Downloads never run themselves. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
 
 If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads are staged in `%LOCALAPPDATA%\SoundLock\updates`, with installation/recovery files in a private `sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `update.log`/`old.exe` for diagnosis or manual restoration.
 
-Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Version 0.1.2 has no updater; install 0.1.3 manually once to enable future in-app updates.**
+Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Install 0.1.4 manually when coming from 0.1.3 or earlier:** the release EXE was renamed to `SoundLock-v0.1.4.exe`, and the old updater only recognizes its old filename pattern. The new updater understands canonical names and retains historical name support. No legacy-named EXE is published for 0.1.4.
 
 ## System limiter
 
 1. Keep your browser/player on its normal output.
-2. Open **Setup** and select that same listening device.
-3. Select a profile, choose a **Peak target**, and start processing. Lower targets reduce more peaks.
+2. Open **Settings > Audio**, choose **System limiter** and select that same listening device.
+3. In the tray popup, select a profile, choose a **Peak limit**, and press **Start**. Lower targets reduce more peaks.
 
 This mode reads the endpoint's pre-volume peak meter and temporarily attenuates its volume. It never raises the volume above your starting level. Night uses the slowest recovery; Speakers recovers faster. Keyboard/mixer volume changes become the new upper bound. Stop and normal Quit restore the last user-selected level if the app still owns the current setting. A crash, forced termination or power loss cannot run cleanup; Windows may retain the last attenuated level.
 
@@ -45,12 +59,12 @@ It is a reactive volume controller, **not a sample-accurate limiter**. The meter
 
 ## Optional VB-CABLE setup
 
-Open **Setup > Driver (optional)**, or click the **DRIVER-FREE** badge to see the optional path. That badge describes System limiter, not a restriction on the whole app.
+Open **Settings > Driver (optional)** from the popup or the tray menu. System limiter remains driver-free; optional VB-CABLE enables the separate Boost + leveling path.
 
 1. Click **Download driver**. Sound Lock downloads Pack 45 from the [official VB-Audio website](https://vb-audio.com/Cable/) and verifies its checksum. Downloading never launches an installer.
 2. Click **Install driver…** separately. Sound Lock unpacks the complete package, verifies the setup executable's Windows signature, and opens the vendor's interactive installer with Windows UAC. Administrator access is required. Complete the vendor's setup yourself; no silent installation or automatic acceptance of license terms is performed.
-3. Restart Windows, open the same panel and click **Refresh devices**, then **Use VB-CABLE**. This selects **Boost + leveling** with **CABLE Input** as its loopback source. Keep your real headphones/speakers as **Listening device**.
-4. In **Setup > Audio**, leave **Auto-route browser** enabled and select Chrome, Edge, Firefox, Brave, Opera or Vivaldi. Start processing and play something in that browser. Sound Lock sends it to **CABLE Input** and restores its previous output on Stop or Quit. Leave VB-CABLE's Loopback option enabled (the Pack 45 default).
+3. Restart Windows, open the same panel and click **Refresh devices**, then **Use VB-CABLE**. This selects **Boost + leveling** with **CABLE Input** as its loopback source. Keep your real headphones/speakers as **Listening**.
+4. In **Settings > Audio**, leave **Auto-route** enabled and select Chrome, Edge, Firefox, Brave, Opera or Vivaldi. Start processing and play something in that browser. Sound Lock sends it to **CABLE Input** and restores its previous output on Stop or Quit. Leave VB-CABLE's Loopback option enabled (the Pack 45 default).
 
 ```text
 Browser/player -> CABLE Input (virtual, inaudible)
@@ -72,8 +86,8 @@ Browser/player -> unused playback output -> WASAPI loopback
               -> Sound Lock DSP -> physical headphones/speakers
 ```
 
-1. Select **Boost + leveling**, open **Setup > Audio**, select the unused output as **Source**, and your headphones as **Listening device**.
-2. Leave **Auto-route browser** enabled and select your browser.
+1. Open **Settings > Audio**, select **Boost + leveling**, choose the unused output as **Source**, and your headphones as **Listening**.
+2. Leave **Auto-route** enabled and select your browser.
 3. Leave the source unmuted. Its original playback must be inaudible; loopback does not suppress it. Source and listening devices must differ to avoid feedback.
 4. Start processing, play something in the selected browser and raise gain gradually from 100%.
 
@@ -81,13 +95,13 @@ If the source is audible you will hear both versions. Muting or zeroing that end
 
 ## Automatic browser output
 
-**Auto-route browser** is enabled by default for Boost + leveling. Choose one browser in **Setup > Audio**; Start opens the PCM bridge first, then switches that browser's registered audio processes to Source. All tabs using its normal audio output are affected. New audio processes are detected while processing runs, including after a browser restart. Stop and normal Quit restore the original per-app Console, Multimedia and Communications output preferences, including **Follow default**. System limiter never routes apps or changes the Windows default output.
+**Auto-route** is enabled by default for Boost + leveling. Choose one browser in **Settings > Audio**; Start opens the PCM bridge first, then switches that browser's registered audio processes to Source. All tabs using its normal audio output are affected. New audio processes are detected while processing runs, including after a browser restart. Stop and normal Quit restore the original per-app Console, Multimedia and Communications output preferences, including **Follow default**. System limiter never routes apps or changes the Windows default output.
 
 Previous preferences are saved before switching in `%APPDATA%\SoundLock\browser-routing.json`. A partial start failure rolls back changes. Recovery retries while Sound Lock is open and on its next launch. If the browser has closed, open it and start playback so Windows can resolve its audio identity; pending recovery blocks a new automatic session until it completes. A force kill, crash or power loss cannot restore immediately: relaunch Sound Lock and play browser audio to recover. There is no background service after Quit.
 
-When migrating an existing manual assignment to the selected Source (for example CABLE Input), Stop uses **Listening device** so the browser remains audible. If the previous explicit device was disconnected, restoration uses the Windows default; if that default is Source, it uses Listening device instead.
+When migrating an existing manual assignment to the selected Source (for example CABLE Input), Stop uses **Listening** so the browser remains audible. If the previous explicit device was disconnected, restoration uses the Windows default; if that default is Source, it uses Listening device instead.
 
-This uses Windows' internal per-app audio policy interface, so compatibility with future Windows updates is not guaranteed. If routing is unavailable, Start reports the error and does not leave processing active. For another player, a site that explicitly selects its own sink, or manual control, disable **Auto-route browser**, use **Open Windows volume mixer** and restore that app's output yourself afterward. No browser extension, injection, driver installation or administrator access is needed for routing. Process paths/PIDs and audio-session metadata are used; tabs, URLs and audio content are not inspected.
+This uses Windows' internal per-app audio policy interface, so compatibility with future Windows updates is not guaranteed. If routing is unavailable, Start reports the error and does not leave processing active. For another player, a site that explicitly selects its own sink, or manual control, disable **Auto-route**, use **Open Windows volume mixer** and restore that app's output yourself afterward. No browser extension, injection, driver installation or administrator access is needed for routing. Process paths/PIDs and audio-session metadata are used; tabs, URLs and audio content are not inspected.
 
 The DSP is stereo-linked and includes gated upward leveling, a soft-knee compressor, smoothed manual gain and a sample-peak limiter. It raises quiet dialogue along with other quiet material; it does **not** separate speech from music/effects. 400% describes amplitude gain before limiting, not four times perceived loudness or a guarantee that already loud audio can become four times louder without distortion.
 
@@ -103,7 +117,7 @@ Mono/stereo PCM only; f32, f64, i16, u16 and i32. Different sample rates use lin
 
 ```powershell
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo test --workspace --locked
 cargo build --release --locked
 ```
@@ -146,7 +160,15 @@ cargo test --locked update::tests::official_github_release_download_verifies_wit
 
 The last command downloads/verifies the latest public release without installing or executing it.
 
-Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values, update-check preference and stable device identifiers persist. Processing does not start automatically. Audio, Driver and Updates settings use a modal with a dimmed, inactive background; close it with **Close** or Esc. There is no Sound Lock application installer, executable signing or Windows autostart yet.
+A real-window regression is available on an interactive Windows desktop:
+
+```powershell
+./scripts/test-tray.ps1
+```
+
+It uses preview mode with fake endpoints and no user settings writes. It exercises the actual installed tray callbacks, native visibility, toggle/dismiss, focus loss, separate Settings, minimize/restore, hidden commands and Quit. The `ui-capture` feature adds opt-in own-window PNG capture through `SOUND_LOCK_CAPTURE_TO` and `SOUND_LOCK_CAPTURE_VIEW` (`popup`, `audio`, `driver`, `updates`, `dialog`) when running with `--preview`. Production builds omit those QA features.
+
+Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values, update-check preference and stable device identifiers persist. Processing does not start automatically. Audio, Driver and Updates live in a separate, content-sized Settings window. Detail dialogs have a visible border, soft shadow and a dimmed, inactive background; close those dialogs with **Close** or Esc. The popup and Settings have no scrolling containers. There is no Sound Lock application installer, executable signing or Windows autostart yet.
 
 See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) and [actual validation results](docs/validation.md). CI builds a Windows executable artifact.
 
@@ -158,7 +180,9 @@ To publish a version, update Cargo's version/lockfile and `docs/releases/VERSION
 crates/soundlock-dsp/   dependency-free PCM dynamics core
 src/system.rs          driver-free endpoint volume controller
 src/audio.rs           WASAPI loopback bridge, queue and resampling
-src/app.rs             fixed-size, English-only egui interface
+src/app.rs             shared popup/settings state and independent native viewports
+src/popup.rs           tray anchoring, focus behavior and monitor/DPI placement
+src/theme.rs           graphite surfaces, muted blue accent, borders and shadows
 src/tray.rs            Windows tray menu and direct HWND restoration
 src/config.rs          profiles and persisted settings
 src/driver.rs          optional official driver download and interactive setup

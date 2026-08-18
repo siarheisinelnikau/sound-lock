@@ -24,11 +24,13 @@ def package(artifact: Path, output: Path) -> str:
         raise ValueError("The release must contain a Windows x64 executable")
     output.mkdir(parents=True, exist_ok=True)
     stem = f"sound-lock-{version}-windows-x64"
-    standalone = output / f"{stem}.exe"
+    standalone = output / f"SoundLock-v{version}.exe"
     shutil.copyfile(executable, standalone)
     archive = output / f"{stem}.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
-        for source, name in [(executable, "sound-lock.exe"), (artifact / "README.md", "README.md"), (artifact / "LICENSE", "LICENSE")]:
+        files = [(executable, "sound-lock.exe"), (artifact / "README.md", "README.md"), (artifact / "LICENSE", "LICENSE")]
+        files.extend((source, source.relative_to(artifact).as_posix()) for source in sorted((artifact / "docs/screenshots").glob("*.png")))
+        for source, name in files:
             # Stable archive metadata permits retrying an interrupted draft upload.
             info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED

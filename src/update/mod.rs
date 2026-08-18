@@ -96,9 +96,20 @@ fn parse_release(bytes: &[u8], current: &str) -> Result<Option<Release>> {
         }
         Ok(asset.clone())
     };
+    // Prefer the canonical single-architecture name. Older published releases
+    // remain readable; no legacy alias is generated for new releases.
+    let names = [
+        format!("SoundLock-v{version}.exe"),
+        format!("SoundLock-v{version}-x64.exe"),
+        format!("sound-lock-{version}-windows-x64.exe"),
+    ];
+    let exe_name = names
+        .iter()
+        .find(|name| data.assets.iter().any(|asset| asset.name == **name))
+        .context("The release has no compatible Windows x64 executable")?;
     Ok(Some(Release {
         version: version.to_string(),
-        exe: asset(&format!("sound-lock-{version}-windows-x64.exe"), MAX_EXE)?,
+        exe: asset(exe_name, MAX_EXE)?,
         sums: asset("SHA256SUMS.txt", MAX_SUMS)?,
     }))
 }
@@ -406,6 +417,26 @@ impl Updater {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "ui-capture")]
+pub fn fixture_updater_for_preview() -> Updater {
+    let version = "0.1.5".to_owned();
+    let asset = |name: &str| Asset {
+        name: name.into(),
+        browser_download_url: format!("{RELEASES}/download/v{version}/{name}"),
+        size: 1024,
+        digest: None,
+    };
+    Updater {
+        release: Some(Release {
+            exe: asset("SoundLock-v0.1.5.exe"),
+            sums: asset("SHA256SUMS.txt"),
+            version,
+        }),
+        message: "A newer version is available.".into(),
+        ..Updater::default()
+    }
+}
 
 #[cfg(test)]
 pub(crate) fn fixture_updater(ready: bool, downloading: bool) -> Updater {
