@@ -2,6 +2,8 @@
 
 **Steady sound for movies.** A standalone Windows tray app written in Rust, with a compact English tray popup, one main slider and Night / Headphones / Speakers profiles.
 
+[Download the latest release](https://github.com/siarheisinelnikau/sound-lock/releases/latest) · [Release notes](https://github.com/siarheisinelnikau/sound-lock/releases/tag/v0.1.4) · [Release conventions](docs/releasing.md)
+
 System limiter works without a browser extension, extra driver or administrator access. **Optional VB-CABLE setup is available inside the app** for full processing without a spare physical output. The two processing paths have different capabilities:
 
 | Mode | Setup | What it does | Limit |
@@ -21,9 +23,21 @@ Real application captures in preview mode, with simulated devices and no audio c
 
 ![Update settings with startup checking and in-app download and installation](docs/screenshots/update-settings.png)
 
-## Build and run
+## Download and run
 
-Portable Windows x64 downloads are available on the [Releases page](https://github.com/siarheisinelnikau/sound-lock/releases). Extract the ZIP and run `sound-lock.exe`; it includes README and the license. Release assets also include `SoundLock-vVERSION.exe` and SHA-256 checksums. The single executable targets Windows x64; its name has no architecture suffix.
+Requires **Windows 10/11 x64**. Rust, administrator access and a driver are not required to run the System limiter.
+
+| Download for v0.1.4 | Use |
+|---|---|
+| [SoundLock-v0.1.4.exe](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/SoundLock-v0.1.4.exe) | Portable app: download and run |
+| [sound-lock-0.1.4-windows-x64.zip](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/sound-lock-0.1.4-windows-x64.zip) | Extract and run `sound-lock.exe`; includes README, screenshots and MIT license |
+| [SHA256SUMS.txt](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/SHA256SUMS.txt) | SHA-256 checksums for both downloads |
+
+Processing starts only when you press **Start**. A left click on the tray icon toggles the 368 × 304 quick panel: volume, profiles, leveling and Start/Stop. Clicking outside or pressing Esc dismisses it while audio keeps running. **Settings** opens a separate window for Audio, Driver and Updates; closing Settings leaves the app in the tray. Right-click the icon for sound controls, settings, update checks and Quit.
+
+**Upgrading from 0.1.3 or earlier?** Quit the old version and download 0.1.4 manually once. The old updater cannot discover the renamed EXE. Your existing settings are preserved. Later compatible releases can be installed from **Settings > Updates**.
+
+## Build from source
 
 Requirements: Windows 10/11 x64, Rust 1.95+ with an [MSVC toolchain](https://rustup.rs/), and Visual Studio Build Tools with **Desktop development with C++**.
 
@@ -31,7 +45,7 @@ Requirements: Windows 10/11 x64, Rust 1.95+ with an [MSVC toolchain](https://rus
 cargo run --release --locked
 ```
 
-Executable: `target\release\sound-lock.exe`. The built executable runs without Rust installed. Processing starts only when you press **Start**. A left click on the tray icon toggles the 368 × 304 quick panel: volume, profiles, leveling and Start/Stop. Clicking outside or pressing Esc dismisses it while audio keeps running. **Settings** opens a separate window for Audio, Driver and Updates; closing Settings leaves the app in the tray. Right-click the icon for sound controls, settings, update checks and Quit.
+Cargo builds `target\release\sound-lock.exe`. Release packaging names the standalone download `SoundLock-vVERSION.exe`; the executable inside the ZIP keeps its stable `sound-lock.exe` name.
 
 ## Tray workflow
 
@@ -41,7 +55,7 @@ The normal launch opens only the quick popup near the tray icon. `sound-lock.exe
 
 Open **Settings > Updates** to see the installed version and use **Check for updates**. **Check for updates on startup** is enabled by default and can be turned off; the saved opt-out prevents startup requests. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights Settings in the popup and appears in the tray menu/tooltip. Startup checks never open no-update or network-error dialogs. Prereleases and downgrades are not offered.
 
-Click **Download and install** to download, verify and install the update, then restart. **Install later** defers the restart while the download continues; afterward use **Restart & install** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Downloads never run themselves. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
+Click **Download and install** to download, verify and install the update, then restart. Startup checks never download or install an update; that requires your action. **Install later** defers the restart while the requested download continues; afterward use **Restart & install** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
 
 If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads are staged in `%LOCALAPPDATA%\SoundLock\updates`, with installation/recovery files in a private `sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `update.log`/`old.exe` for diagnosis or manual restoration.
 
@@ -101,7 +115,7 @@ Previous preferences are saved before switching in `%APPDATA%\SoundLock\browser-
 
 When migrating an existing manual assignment to the selected Source (for example CABLE Input), Stop uses **Listening** so the browser remains audible. If the previous explicit device was disconnected, restoration uses the Windows default; if that default is Source, it uses Listening device instead.
 
-This uses Windows' internal per-app audio policy interface, so compatibility with future Windows updates is not guaranteed. If routing is unavailable, Start reports the error and does not leave processing active. For another player, a site that explicitly selects its own sink, or manual control, disable **Auto-route**, use **Open Windows volume mixer** and restore that app's output yourself afterward. No browser extension, injection, driver installation or administrator access is needed for routing. Process paths/PIDs and audio-session metadata are used; tabs, URLs and audio content are not inspected.
+This uses Windows' internal per-app audio policy interface, so compatibility with future Windows updates is not guaranteed. If routing is unavailable, Start reports the error and does not leave processing active. For another player, a site that explicitly selects its own sink, or manual control, disable **Auto-route**, use **Windows volume mixer** and restore that app's output yourself afterward. No browser extension, injection, driver installation or administrator access is needed for routing. Process paths/PIDs and audio-session metadata are used; tabs, URLs and audio content are not inspected.
 
 The DSP is stereo-linked and includes gated upward leveling, a soft-knee compressor, smoothed manual gain and a sample-peak limiter. It raises quiet dialogue along with other quiet material; it does **not** separate speech from music/effects. 400% describes amplitude gain before limiting, not four times perceived loudness or a guarantee that already loud audio can become four times louder without distortion.
 
@@ -172,7 +186,13 @@ Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values, update-check
 
 See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) and [actual validation results](docs/validation.md). CI builds a Windows executable artifact.
 
-To publish a version, update Cargo's version/lockfile and `docs/releases/VERSION.md`, then push a commit whose first line is exactly `Release vVERSION` to `main`. Alternatively, run the Windows workflow on `main` with **publish_release** enabled. Publishing waits for formatting, Clippy, tests and the Windows release build; a separate job packages that exact artifact and publishes a draft only after its assets upload. Existing published releases are never overwritten.
+## Release naming and publishing
+
+Standalone downloads use **`SoundLock-vVERSION.exe`**, for example `SoundLock-v0.1.4.exe`. Add `-x64`, `-x86` or `-arm64` only when the **same release offers multiple executable architectures**. A ZIP, source archive or checksum file does not count as another architecture.
+
+The Git tag is `vVERSION`, the release title is `Sound Lock vVERSION`, and the publishing commit's first line is exactly `Release vVERSION`. The current ZIP format remains `sound-lock-VERSION-windows-x64.zip`; it contains `sound-lock.exe`. Keep README links, uploaded filenames, updater selection and checksums consistent.
+
+See [release conventions and publication steps](docs/releasing.md) for the full naming table, compatibility requirements and CI workflow. Documentation-only changes do not need a version bump or a new release.
 
 ## Source layout
 
@@ -183,7 +203,7 @@ src/audio.rs           WASAPI loopback bridge, queue and resampling
 src/app.rs             shared popup/settings state and independent native viewports
 src/popup.rs           tray anchoring, focus behavior and monitor/DPI placement
 src/theme.rs           graphite surfaces, muted blue accent, borders and shadows
-src/tray.rs            Windows tray menu and direct HWND restoration
+src/tray.rs            Windows tray menu, icon callbacks and viewport wakeups
 src/config.rs          profiles and persisted settings
 src/driver.rs          optional official driver download and interactive setup
 src/routing/           per-browser audio policy, durable recovery and ownership lock
