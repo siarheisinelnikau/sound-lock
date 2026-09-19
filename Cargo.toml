@@ -1,5 +1,6 @@
 [workspace]
 members = ["crates/soundlock-dsp"]
+exclude = ["vendor/egui-software"]
 resolver = "2"
 
 [package]
@@ -11,14 +12,18 @@ description = "A Windows tray app for quieter peaks, clearer quiet scenes and up
 license = "MIT"
 
 [features]
-screenshot = ["eframe/__screenshot"]
 ui-capture = ["dep:png"]
 tray-smoke-test = []
 
 [dependencies]
 anyhow = "1"
 cpal = "=0.17.3"
-eframe = { version = "=0.37.0", default-features = false, features = ["default_fonts", "glow", "accesskit", "links", "clipboard"] }
+egui = { version = "=0.37.0", default-features = false, features = ["default_fonts"] }
+egui-winit = { version = "=0.37.0", default-features = false, features = ["links", "clipboard", "accesskit"] }
+accesskit_winit = "=0.34.2"
+egui_software_backend = { path = "vendor/egui-software", default-features = false, features = ["std"] }
+winit = { version = "=0.30.13", default-features = false, features = ["rwh_06"] }
+raw-window-handle = "0.6"
 png = { version = "0.18.1", optional = true }
 rtrb = "=0.3.2"
 serde = { version = "1", features = ["derive"] }
@@ -31,6 +36,7 @@ ureq = { version = "=3.5.0", default-features = false, features = ["native-tls-n
 zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate2"] }
 
 [target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Graphics_Dwm", "Win32_UI_WindowsAndMessaging"] }
 tray-icon = { version = "=0.21.3", default-features = false }
 windows = { version = "0.61", features = ["Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_WinRT", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Security_WinTrust", "Win32_Security_Cryptography", "Win32_Foundation"] }
 

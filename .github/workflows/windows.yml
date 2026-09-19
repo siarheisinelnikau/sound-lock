@@ -38,6 +38,7 @@ jobs:
             LICENSE
             README.md
             docs/screenshots/*.png
+            vendor/egui-software/LICENSE-*
 
   release:
     needs: build

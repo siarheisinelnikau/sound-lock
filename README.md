@@ -51,6 +51,14 @@ Cargo builds `target\release\sound-lock.exe`. Release packaging names the standa
 
 The normal launch opens only the quick popup near the tray icon. `sound-lock.exe --startup` starts quietly in the tray; `--settings` opens Settings instead. These switches do not register Windows autostart. The graphitic palette uses Segoe UI when installed and a muted blue accent. Popup placement stays within the work area of the tray monitor, including side/top taskbars and negative monitor coordinates.
 
+## CPU rendering in development builds
+
+The current source uses a CPU rasterizer with Windows GDI presentation, without an OpenGL or DirectX rendering backend. The popup uses per-pixel alpha and its own rounded border/shadow; Windows does not draw a second rectangular frame around it. The published 0.1.4 downloads above precede this rendering change.
+
+The pinned software rasterizer retains its upstream [MIT](vendor/egui-software/LICENSE-MIT) / [Apache-2.0](vendor/egui-software/LICENSE-APACHE) licenses; both texts are included in newly packaged ZIP builds.
+
+Static windows wait for input or a background result. Audio monitoring and delayed settings saves can run without painting Settings. Visible meter changes repaint the quick panel; unchanged readings do not. Windows expose events reuse the retained bitmap, and the event loop sleeps when no work is due. Font textures are rasterized at the current pixel density; popup positioning also accounts for UI zoom. See [CPU rendering validation](docs/validation-cpu.md) for measured conditions and limitations.
+
 ## Updates
 
 Open **Settings > Updates** to see the installed version and use **Check for updates**. **Check for updates on startup** is enabled by default and can be turned off; the saved opt-out prevents startup requests. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights Settings in the popup and appears in the tray menu/tooltip. Startup checks never open no-update or network-error dialogs. Prereleases and downgrades are not offered.
@@ -106,6 +114,8 @@ Browser/player -> unused playback output -> WASAPI loopback
 4. Start processing, play something in the selected browser and raise gain gradually from 100%.
 
 If the source is audible you will hear both versions. Muting or zeroing that endpoint can also silence loopback on some devices, so it is not a reliable replacement for an inaudible source. With only one usable output, use **System limiter** or the optional VB-CABLE route above.
+
+Media players also work: Boost + leveling processes all audio arriving at Source. Automatic routing and restoration currently cover only the selected browser. For Media Player or another app, disable Auto-route, assign its output to Source in Windows volume mixer, and restore its normal output manually after stopping Sound Lock.
 
 ## Automatic browser output
 
@@ -203,6 +213,7 @@ src/audio.rs           WASAPI loopback bridge, queue and resampling
 src/app.rs             shared popup/settings state and independent native viewports
 src/popup.rs           tray anchoring, focus behavior and monitor/DPI placement
 src/theme.rs           graphite surfaces, muted blue accent, borders and shadows
+src/desktop/           reactive winit host, CPU rasterization and retained GDI bitmaps
 src/tray.rs            Windows tray menu, icon callbacks and viewport wakeups
 src/config.rs          profiles and persisted settings
 src/driver.rs          optional official driver download and interactive setup

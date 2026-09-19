@@ -1,4 +1,4 @@
-use eframe::egui::{self, Pos2, Vec2};
+use egui::{self, Pos2, Vec2};
 
 pub const TITLE: &str = "Sound Lock — Sound controls";
 pub const SETTINGS_TITLE: &str = "Sound Lock — Settings";
@@ -94,7 +94,7 @@ pub fn position(anchor: Option<Anchor>, size: Vec2, ctx: &egui::Context) -> Pos2
         let _ = GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut x_dpi, &mut y_dpi);
     }
     let work = info.rcWork;
-    let scale = x_dpi.max(96) as f32 / 96.0;
+    let scale = x_dpi.max(96) as f32 / 96.0 * ctx.zoom_factor();
     let anchor = anchor.unwrap_or(Anchor {
         left: work.right - 32,
         top: work.bottom + 8,
@@ -107,7 +107,7 @@ pub fn position(anchor: Option<Anchor>, size: Vec2, ctx: &egui::Context) -> Pos2
         (size.x * scale).ceil() as i32,
         (size.y * scale).ceil() as i32,
     );
-    let current_scale = ctx.native_pixels_per_point().unwrap_or(scale);
+    let current_scale = ctx.pixels_per_point();
     Pos2::new(x as f32 / current_scale, y as f32 / current_scale)
 }
 #[cfg(not(windows))]

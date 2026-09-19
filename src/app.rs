@@ -8,7 +8,7 @@ use crate::{
     tray::{Action, Tray},
     update,
 };
-use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
+use egui::{self, Color32, RichText, Stroke, Vec2};
 use soundlock_dsp::gain_to_db;
 #[cfg(feature = "tray-smoke-test")]
 #[path = "tray_smoke.rs"]
@@ -64,7 +64,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, startup: update::Startup) -> Self {
+    pub fn new(cc: &crate::desktop::CreationContext<'_>, startup: update::Startup) -> Self {
         let ctx = &cc.egui_ctx;
         theme::apply(ctx);
         let preview = std::env::args().any(|a| a == "--preview")
@@ -100,7 +100,8 @@ impl App {
             routing: if preview {
                 routing::Service::disabled()
             } else {
-                routing::Service::new()
+                let wake = ctx.clone();
+                routing::Service::new(move || wake.request_repaint_of(egui::ViewportId::ROOT))
             },
             route_status: String::new(),
             active: None,
@@ -157,6 +158,12 @@ impl App {
         }
         #[cfg(feature = "ui-capture")]
         if preview {
+            if let Ok(scale) = std::env::var("SOUND_LOCK_UI_SCALE")
+                && let Ok(scale) = scale.parse::<f32>()
+                && (1.0..=2.0).contains(&scale)
+            {
+                ctx.set_zoom_factor(scale);
+            }
             match std::env::var("SOUND_LOCK_CAPTURE_VIEW").as_deref() {
                 Ok("audio") => app.open_settings(SetupPage::Audio, ctx),
                 Ok("driver") => app.open_settings(SetupPage::Driver, ctx),
@@ -168,11 +175,12 @@ impl App {
                     app.open_settings(SetupPage::Audio, ctx);
                     app.notice = Some("The selected audio device is unavailable. Reconnect your headphones, then refresh the device list in Audio settings.".into());
                 }
-                _ => {
+                Ok("popup") => {
                     app.preview_running = true;
                     app.input_level = 0.16;
                     app.reduction = 4.2;
                 }
+                _ => {}
             }
         }
         if app.setup {
@@ -237,10 +245,14 @@ impl App {
             Ordering::Relaxed,
         );
     }
-    fn changed(&mut self) {
+    fn changed(&mut self, ctx: &egui::Context) {
         self.dirty = true;
         self.last_edit = Instant::now();
         self.sync();
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
+        if self.popup_open {
+            ctx.request_repaint_of(popup::id());
+        }
     }
     fn refresh_devices(&mut self) {
         match audio::devices() {
@@ -295,8 +307,13 @@ impl App {
         result
     }
     fn toggle(&mut self, ctx: &egui::Context) {
+        ctx.request_repaint_of(egui::ViewportId::ROOT);
+        if self.popup_open {
+            ctx.request_repaint_of(popup::id());
+        }
         if self.preview {
             self.preview_running = !self.preview_running;
+            ctx.request_repaint_of(egui::ViewportId::ROOT);
             return;
         }
         if self.active.is_some() {
@@ -358,11 +375,11 @@ impl App {
             Action::ToggleAudio => self.toggle(ctx),
             Action::ToggleProcessing => {
                 self.config.enabled = !self.config.enabled;
-                self.changed();
+                self.changed(ctx);
             }
             Action::Mode(mode) => {
                 self.config.mode = mode;
-                self.changed();
+                self.changed(ctx);
             }
             Action::Quit => {
                 self.quitting = true;
@@ -440,7 +457,7 @@ impl App {
                 {
                     self.stop();
                     self.config.source = source;
-                    self.changed();
+                    self.changed(ui.ctx());
                 }
             }
         });
@@ -502,7 +519,7 @@ impl App {
                 )
                 .changed()
             {
-                self.changed();
+                self.changed(ui.ctx());
             }
         });
     }
@@ -533,7 +550,7 @@ impl App {
                     .clicked()
                 {
                     self.config.mode = mode;
-                    self.changed();
+                    self.changed(ui.ctx());
                 }
             }
         });
@@ -551,7 +568,7 @@ impl App {
                 )
                 .changed()
             {
-                self.changed();
+                self.changed(ui.ctx());
             }
             let level = ((gain_to_db(self.input_level) + 60.0) / 60.0).clamp(0.0, 1.0);
             ui.add(
@@ -595,7 +612,7 @@ impl App {
                     });
                 }
             });
-            if changed { self.changed(); }
+            if changed { self.changed(ui.ctx()); }
         });
         if running {
             ui.label(
@@ -718,7 +735,7 @@ impl App {
             {
                 self.config.source = Source::Bridge;
                 self.config.input_id = Some(endpoint.id);
-                self.changed();
+                self.changed(ui.ctx());
                 self.setup_page = SetupPage::Audio;
             }
         });
@@ -749,7 +766,7 @@ impl App {
             )
             .changed()
         {
-            self.changed();
+            self.changed(ui.ctx());
         }
         ui.separator();
         ui.horizontal(|ui| {
@@ -988,9 +1005,12 @@ impl App {
         if focused == Some(true) {
             self.popup_had_focus = true;
         }
+        let benchmark_hold = cfg!(feature = "ui-capture")
+            && self.preview
+            && std::env::var("SOUND_LOCK_RENDER_ACTIVITY").as_deref() == Ok("1");
         if popup::dismiss(
             self.popup_had_focus,
-            focused,
+            if benchmark_hold { Some(true) } else { focused },
             self.popup_anchor.is_some_and(popup::cursor_in),
             ctx.input(|i| i.key_pressed(egui::Key::Escape)),
             ctx.input(|i| i.viewport().close_requested()),
@@ -1003,9 +1023,6 @@ impl App {
             .show(ui, |ui| {
                 self.popup_content(ui);
             });
-        if let Err(error) = self.startup.acknowledge() {
-            self.updater.error = Some(format!("Could not confirm update startup: {error:#}"));
-        }
         #[cfg(feature = "ui-capture")]
         if self.preview
             && std::env::var("SOUND_LOCK_CAPTURE_VIEW")
@@ -1015,15 +1032,16 @@ impl App {
         {
             self.capture(&ctx);
         }
-        ctx.request_repaint_after(Duration::from_millis(50));
-        ctx.request_repaint_after_for(Duration::from_millis(50), egui::ViewportId::ROOT);
     }
-    fn tick(&mut self, ctx: &egui::Context) {
-        self.updater.poll();
+    fn tick(&mut self, ctx: &egui::Context) -> bool {
+        let mut ui_changed = self.updater.poll();
+        let driver_message = self.driver.message;
         if self.driver.poll() && !self.preview {
             self.refresh_devices();
         }
+        ui_changed |= driver_message != self.driver.message;
         for action in self.tray.as_ref().map(|t| t.poll()).unwrap_or_default() {
+            ui_changed = true;
             self.action(action, ctx);
         }
         if self.install_requested && !self.updater.busy() && !self.quitting {
@@ -1040,6 +1058,7 @@ impl App {
             }
         }
         for event in self.routing.poll() {
+            ui_changed = true;
             match event {
                 routing::Event::Status(status) => self.route_status = status,
                 routing::Event::Error(error) => {
@@ -1049,14 +1068,22 @@ impl App {
             }
         }
         if self.active.is_some() && self.shared.failed.load(Ordering::Relaxed) {
+            ui_changed = true;
             self.stop();
             self.error = Some(
                 "Audio device unavailable. Reconnect it, open Settings and refresh devices.".into(),
             );
         }
+        let previous_meters = (self.input_level, self.reduction);
         if self.preview_running {
             self.input_level = 0.16;
             self.reduction = 4.2;
+            #[cfg(feature = "ui-capture")]
+            if std::env::var("SOUND_LOCK_RENDER_ACTIVITY").as_deref() == Ok("1") {
+                let wave = (self.last_edit.elapsed().as_secs_f32() * 2.0).sin() * 0.5 + 0.5;
+                self.input_level = 0.02 + wave * 0.25;
+                self.reduction = wave * 6.0;
+            }
         } else if self.active.is_some() {
             self.input_level = Shared::meter(&self.shared.input_peak).max(self.input_level * 0.85);
             self.reduction = Shared::meter(&self.shared.reduction).max(self.reduction * 0.9);
@@ -1085,11 +1112,29 @@ impl App {
             smoke.tick(self, ctx);
             self.smoke = Some(smoke);
         }
-        ctx.request_repaint_after(if self.popup_open || self.setup {
-            Duration::from_millis(50)
-        } else {
-            Duration::from_millis(250)
-        });
+        if self.popup_open && (ui_changed || previous_meters != (self.input_level, self.reduction))
+        {
+            ctx.request_repaint_of(popup::id());
+        }
+        ui_changed
+    }
+    fn next_poll(&self) -> Option<Duration> {
+        let mut delay = None;
+        let mut include = |value| delay = Some(delay.map_or(value, |old: Duration| old.min(value)));
+        if self.is_running() {
+            include(Duration::from_millis(if self.popup_open {
+                50
+            } else {
+                250
+            }));
+        }
+        if self.updater.busy() || self.driver.busy() {
+            include(Duration::from_millis(100));
+        }
+        if self.dirty {
+            include(Duration::from_millis(500).saturating_sub(self.last_edit.elapsed()));
+        }
+        delay
     }
     fn settings_ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
@@ -1122,9 +1167,6 @@ impl App {
                 && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
             {
                 self.close_settings(&ctx);
-            }
-            if let Err(error) = self.startup.acknowledge() {
-                self.updater.error = Some(format!("Could not confirm update startup: {error:#}"));
             }
             #[cfg(feature = "ui-capture")]
             if self.preview
@@ -1171,11 +1213,27 @@ impl Application {
         Self(state)
     }
 }
-impl eframe::App for Application {
-    fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
-        self.0.borrow_mut().tick(ctx);
+impl Application {
+    pub fn logic(&mut self, ctx: &egui::Context) -> bool {
+        self.0.borrow_mut().tick(ctx)
     }
-    fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
+    pub fn next_poll(&self) -> Option<Duration> {
+        self.0.borrow().next_poll()
+    }
+    pub fn progress_visible(&self) -> bool {
+        let app = self.0.borrow();
+        app.setup && (app.updater.busy() || app.driver.busy())
+    }
+    pub fn is_quitting(&self) -> bool {
+        self.0.borrow().quitting
+    }
+    pub fn did_present(&mut self) {
+        let mut app = self.0.borrow_mut();
+        if let Err(error) = app.startup.acknowledge() {
+            app.updater.error = Some(format!("Could not confirm update startup: {error:#}"));
+        }
+    }
+    pub fn ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let builder = {
             let mut app = self.0.borrow_mut();
@@ -1187,6 +1245,7 @@ impl eframe::App for Application {
                     .with_resizable(false)
                     .with_taskbar(false)
                     .with_transparent(true)
+                    .with_visible(true)
                     .with_active(true)
                     .with_window_level(egui::WindowLevel::AlwaysOnTop)
                     .with_inner_size(popup::SIZE)
@@ -1201,10 +1260,7 @@ impl eframe::App for Application {
             });
         }
     }
-    fn clear_color(&self, _: &egui::Visuals) -> [f32; 4] {
-        [0.0; 4]
-    }
-    fn on_exit(&mut self, _: Option<&eframe::glow::Context>) {
+    pub fn exit(&mut self) {
         self.0.borrow_mut().exit();
     }
 }
@@ -1282,26 +1338,38 @@ mod tests {
         events: Vec<Event>,
         time: &mut f64,
     ) -> (egui::FullOutput, Rect, Option<Rect>) {
+        frame_scaled(ctx, app, events, time, 1.0)
+    }
+    fn frame_scaled(
+        ctx: &egui::Context,
+        app: &mut App,
+        events: Vec<Event>,
+        time: &mut f64,
+        scale: f32,
+    ) -> (egui::FullOutput, Rect, Option<Rect>) {
         *time += 0.1;
         let mut content = Rect::NOTHING;
         let mut modal = None;
-        let mut output = ctx.run_ui(
-            egui::RawInput {
-                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, popup::SETTINGS_SIZE)),
-                time: Some(*time),
-                events,
-                ..Default::default()
-            },
-            |root| {
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::new().fill(BG).inner_margin(18))
-                    .show(root, |ui| {
-                        app.settings_content(ui);
-                        content = ui.min_rect();
-                    });
-                modal = app.show_notice(root.ctx());
-            },
-        );
+        let mut input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, popup::SETTINGS_SIZE)),
+            time: Some(*time),
+            events,
+            ..Default::default()
+        };
+        input
+            .viewports
+            .get_mut(&egui::ViewportId::ROOT)
+            .unwrap()
+            .native_pixels_per_point = Some(scale);
+        let mut output = ctx.run_ui(input, |root| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::new().fill(BG).inner_margin(18))
+                .show(root, |ui| {
+                    app.settings_content(ui);
+                    content = ui.min_rect();
+                });
+            modal = app.show_notice(root.ctx());
+        });
         output.textures_delta.clear();
         (output, content, modal)
     }
@@ -1516,5 +1584,51 @@ mod tests {
         app.check_updates_on_start(&ctx);
         assert!(!app.updater.busy());
         assert!(!app.setup && !app.popup_open && app.notice.is_none());
+    }
+    #[test]
+    fn idle_ui_sleeps_but_pending_work_and_debounced_edits_keep_a_deadline() {
+        let ctx = egui::Context::default();
+        let mut app = app();
+        app.setup = true;
+        assert!(app.next_poll().is_none());
+        app.popup_open = true;
+        assert!(app.next_poll().is_none());
+        app.config.volume_percent = 175.0;
+        app.changed(&ctx);
+        assert!(app.dirty && app.next_poll().is_some());
+        app.last_edit = Instant::now() - Duration::from_millis(501);
+        app.tick(&ctx);
+        assert!(!app.dirty && app.next_poll().is_none());
+        assert_eq!(app.config.volume_percent, 175.0);
+        app.toggle(&ctx);
+        assert!(app.is_running() && app.next_poll().is_some());
+        app.toggle(&ctx);
+        assert!(!app.is_running() && app.next_poll().is_none());
+        app.updater = update::fixture_updater(false, true);
+        assert!(app.next_poll().is_some());
+    }
+    #[test]
+    fn settings_layout_and_font_atlas_follow_native_pixel_density() {
+        for scale in [1.0, 1.25, 1.5, 2.0] {
+            for page in [SetupPage::Audio, SetupPage::Driver, SetupPage::Updates] {
+                let ctx = egui::Context::default();
+                theme::apply(&ctx);
+                let mut app = app();
+                app.config.source = Source::Bridge;
+                app.setup_page = page;
+                let mut time = 0.0;
+                frame_scaled(&ctx, &mut app, vec![], &mut time, scale);
+                let (output, content, _) = frame_scaled(&ctx, &mut app, vec![], &mut time, scale);
+                assert_eq!(output.pixels_per_point, scale);
+                assert!(
+                    Rect::from_min_size(Pos2::ZERO, popup::SETTINGS_SIZE).contains_rect(content),
+                    "Layout clipped at {scale}: {content:?}"
+                );
+                assert!(
+                    !ctx.tessellate(output.shapes, output.pixels_per_point)
+                        .is_empty()
+                );
+            }
+        }
     }
 }

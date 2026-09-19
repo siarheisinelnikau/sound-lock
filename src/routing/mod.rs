@@ -394,10 +394,10 @@ pub struct Service {
     worker: Option<JoinHandle<()>>,
 }
 impl Service {
-    pub fn new() -> Self {
+    pub fn new(wake: impl Fn() + Send + 'static) -> Self {
         let (sender, receiver) = mpsc::channel();
         let (events, event_receiver) = mpsc::channel();
-        let worker = std::thread::spawn(move || run(receiver, events));
+        let worker = std::thread::spawn(move || run(receiver, events, wake));
         Self {
             commands: Some(sender),
             events: event_receiver,
@@ -464,7 +464,12 @@ fn journal_path() -> PathBuf {
     crate::config::Config::path().with_file_name("browser-routing.json")
 }
 #[cfg(windows)]
-fn run(receiver: Receiver<Command>, events: Sender<Event>) {
+fn run(receiver: Receiver<Command>, events: Sender<Event>, wake: impl Fn()) {
+    let emit = |event| {
+        if events.send(event).is_ok() {
+            wake();
+        }
+    };
     // One service owns the per-user recovery journal. The Windows adapter is
     // created only when routing or recovery is actually needed.
     let mut model: Option<Model<windows::Platform, FileStore>> = None;
@@ -497,7 +502,7 @@ fn run(receiver: Receiver<Command>, events: Sender<Event>) {
                         let _ = reply.send(Err(anyhow::anyhow!(message.clone())));
                     }
                     if message != last {
-                        let _ = events.send(Event::Error(message.clone()));
+                        emit(Event::Error(message.clone()));
                         last = message;
                     }
                     continue;
@@ -534,7 +539,7 @@ fn run(receiver: Receiver<Command>, events: Sender<Event>) {
                                 let _ = m.stop();
                             }
                         } else {
-                            let _ = events.send(Event::Status(status.clone()));
+                            emit(Event::Status(status.clone()));
                             last = status;
                         }
                     }
@@ -547,7 +552,7 @@ fn run(receiver: Receiver<Command>, events: Sender<Event>) {
                 let result = model.as_mut().map_or(Ok(()), |m| m.stop());
                 let _ = reply.send(result);
                 last.clear();
-                let _ = events.send(Event::Status(String::new()));
+                emit(Event::Status(String::new()));
             }
             Some(Command::Quit) => {
                 if let Some(m) = &mut model {
@@ -566,7 +571,7 @@ fn run(receiver: Receiver<Command>, events: Sender<Event>) {
                     };
                     if *text != last {
                         last = text.clone();
-                        let _ = events.send(event);
+                        emit(event);
                     }
                 }
             }
@@ -574,7 +579,7 @@ fn run(receiver: Receiver<Command>, events: Sender<Event>) {
     }
 }
 #[cfg(not(windows))]
-fn run(receiver: Receiver<Command>, _: Sender<Event>) {
+fn run(receiver: Receiver<Command>, _: Sender<Event>, _: impl Fn()) {
     for command in receiver {
         match command {
             Command::Start { reply, .. } => {

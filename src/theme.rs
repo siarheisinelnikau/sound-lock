@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, FontId, RichText, Stroke, Vec2};
+use egui::{self, Color32, FontId, RichText, Stroke, Vec2};
 
 pub const BG: Color32 = Color32::from_rgb(23, 24, 28);
 pub const CARD: Color32 = Color32::from_rgb(31, 33, 39);

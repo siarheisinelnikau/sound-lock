@@ -1,5 +1,5 @@
 //! Opt-in framebuffer capture of preview mode, without accessing audio hardware.
-use eframe::egui;
+
 use std::{
     fs::File,
     io::BufWriter,

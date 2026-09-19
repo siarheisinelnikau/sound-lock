@@ -1,5 +1,7 @@
 # Windows manual checks
 
+CPU/GDI development builds: also check the popup over light and dark desktop backgrounds. It should have one rounded outer border/shadow, with no rectangular native contour. Try 100–200% scale and physical mixed-DPI moves. Use `SOUND_LOCK_RENDER_REPORT` for aggregate frame counts; static Settings and hidden idle should stop rasterizing after settling. Pointer-active samples are not idle. Confirm tooltips, drag/keyboard slider changes, clipboard copying, downloads and tray reopening remain responsive. See [CPU validation](validation-cpu.md).
+
 1. Launch on a machine without virtual audio software. The English quick popup and Settings window fit without scrolling; System limiter is usable after selecting a physical output.
 2. Select Night / Headphones / Speakers and adjust the peak target. Start and stop native processing. Confirm real meter readings and the starting device volume is restored after Stop.
 3. During attenuation, change volume using the keyboard or Windows mixer. Confirm the new user level is respected and Stop does not restore above it. Repeat with mute enabled; the app must not unmute it.

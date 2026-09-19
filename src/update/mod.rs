@@ -329,7 +329,7 @@ impl Updater {
                 / self.release.as_ref().map_or(1, |r| r.exe.size) as f32
         })
     }
-    pub fn check(&mut self, ctx: &eframe::egui::Context) {
+    pub fn check(&mut self, ctx: &egui::Context) {
         if self.busy() {
             return;
         }
@@ -348,7 +348,7 @@ impl Updater {
             ctx.request_repaint();
         });
     }
-    pub fn download(&mut self, ctx: &eframe::egui::Context) {
+    pub fn download(&mut self, ctx: &egui::Context) {
         if self.busy() || self.ready() {
             return;
         }
@@ -372,13 +372,13 @@ impl Updater {
             ctx.request_repaint();
         });
     }
-    pub fn poll(&mut self) {
+    pub fn poll(&mut self) -> bool {
         let Some(receiver) = &self.receiver else {
-            return;
+            return false;
         };
         let result = match receiver.try_recv() {
             Ok(r) => r,
-            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Empty) => return false,
             Err(_) => Err("Update task stopped unexpectedly. Please retry.".into()),
         };
         self.receiver = None;
@@ -403,6 +403,7 @@ impl Updater {
                 self.message = "Update could not finish. Retry or open Releases.".into();
             }
         }
+        true
     }
     pub fn prepare_restart(&self) -> Result<install::Prepared> {
         let download = self.ready.as_ref().context("Download an update first")?;

@@ -1,5 +1,4 @@
 use crate::{config::Mode, popup::Anchor};
-use eframe::egui;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
@@ -32,12 +31,19 @@ mod windows {
         updates: MenuItem,
         processing: CheckMenuItem,
         modes: Vec<CheckMenuItem>,
+        last_state: std::cell::RefCell<Option<State>>,
         #[cfg(feature = "tray-smoke-test")]
         menu_handler: Arc<dyn Fn(MenuEvent) + Send + Sync>,
         #[cfg(feature = "tray-smoke-test")]
         click_handler: Arc<dyn Fn(TrayIconEvent) + Send + Sync>,
         #[cfg(feature = "tray-smoke-test")]
         menu_actions: Vec<(tray_icon::menu::MenuId, Action)>,
+    }
+    struct State {
+        running: bool,
+        enabled: bool,
+        mode: Mode,
+        update: Option<String>,
     }
     fn wake(ctx: &egui::Context) {
         // Logic runs while hidden; only viewport changes need a root UI pass.
@@ -125,6 +131,7 @@ mod windows {
                 updates,
                 processing,
                 modes,
+                last_state: std::cell::RefCell::new(None),
                 #[cfg(feature = "tray-smoke-test")]
                 menu_handler,
                 #[cfg(feature = "tray-smoke-test")]
@@ -140,6 +147,14 @@ mod windows {
             self.events.try_iter().collect()
         }
         pub fn sync(&self, running: bool, enabled: bool, mode: Mode, update: Option<&str>) {
+            if self.last_state.borrow().as_ref().is_some_and(|last| {
+                last.running == running
+                    && last.enabled == enabled
+                    && last.mode == mode
+                    && last.update.as_deref() == update
+            }) {
+                return;
+            }
             self.audio.set_text(if running {
                 "Stop processing"
             } else {
@@ -158,6 +173,12 @@ mod windows {
                 |version| format!("Sound Lock · update v{version} available"),
             );
             let _ = self.icon.set_tooltip(Some(tooltip));
+            *self.last_state.borrow_mut() = Some(State {
+                running,
+                enabled,
+                mode,
+                update: update.map(str::to_owned),
+            });
         }
         #[cfg(feature = "tray-smoke-test")]
         pub fn dispatch_click(&self) {

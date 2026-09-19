@@ -28,8 +28,8 @@ pub struct SmokeTest {
     quiet: bool,
 }
 impl SmokeTest {
-    pub fn new(cc: &eframe::CreationContext<'_>, preview: bool) -> Option<Self> {
-        let report = std::env::var_os("SOUND_LOCK_TRAY_SMOKE_REPORT")?;
+    pub fn new(cc: &crate::desktop::CreationContext<'_>, preview: bool) -> Option<Self> {
+        let report = std::env::var_os("SOUND_LOCK_TRAY_SMOKE_REPORT").filter(|p| !p.is_empty())?;
         assert!(preview, "Native tray checks require --preview");
         let window = cc.winit_window().expect("Native root window").clone();
         Some(Self {
@@ -71,6 +71,7 @@ impl SmokeTest {
                 self.stage = Stage::Opened;
             }
             Stage::Opened if visible && !root => {
+                self.pass("popup_uses_per_pixel_alpha_without_a_native_outer_frame");
                 self.pass("tray_opens_only_quick_controls");
                 app.tray.as_ref().unwrap().dispatch_click();
                 self.stage = Stage::ToggledOff;
@@ -170,6 +171,26 @@ fn popup_visible() -> bool {
         let mut text = [0_u16; 128];
         let len = unsafe { GetWindowTextW(window, &mut text) };
         if String::from_utf16_lossy(&text[..len.max(0) as usize]) == popup::TITLE {
+            if unsafe { IsWindowVisible(window).as_bool() } {
+                use windows::Win32::{
+                    Foundation::RECT,
+                    UI::WindowsAndMessaging::{
+                        GWL_EXSTYLE, GetClientRect, GetWindowLongPtrW, GetWindowRect, WS_EX_LAYERED,
+                    },
+                };
+                let mut outer = RECT::default();
+                let mut inner = RECT::default();
+                unsafe {
+                    assert_ne!(
+                        GetWindowLongPtrW(window, GWL_EXSTYLE) & WS_EX_LAYERED.0 as isize,
+                        0
+                    );
+                    GetWindowRect(window, &mut outer).unwrap();
+                    GetClientRect(window, &mut inner).unwrap();
+                }
+                assert_eq!(outer.right - outer.left, inner.right - inner.left);
+                assert_eq!(outer.bottom - outer.top, inner.bottom - inner.top);
+            }
             unsafe {
                 *(data.0 as *mut bool) = IsWindowVisible(window).as_bool();
             }

@@ -64,13 +64,13 @@ impl Setup {
     pub fn installing(&self) -> bool {
         self.work == Some(Work::Install)
     }
-    pub fn download(&mut self, ctx: &eframe::egui::Context) {
+    pub fn download(&mut self, ctx: &egui::Context) {
         self.start(Work::Download, ctx);
     }
-    pub fn install(&mut self, ctx: &eframe::egui::Context) {
+    pub fn install(&mut self, ctx: &egui::Context) {
         self.start(Work::Install, ctx);
     }
-    fn start(&mut self, work: Work, ctx: &eframe::egui::Context) {
+    fn start(&mut self, work: Work, ctx: &egui::Context) {
         if self.busy() {
             return;
         }
