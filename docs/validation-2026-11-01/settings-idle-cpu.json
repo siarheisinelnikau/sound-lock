@@ -1,0 +1,11 @@
+{
+  "scenario": "settings-idle",
+  "pid": 21956,
+  "executable": "E:\\work\\github\\sound-lock\\target\\release\\sound-lock.exe",
+  "sha256": "783ec2a70aa1fe04c110a0475830e393bb7510d7d8f8a4e2716f0617068bbe18",
+  "sample_seconds": 5.0060155,
+  "one_core_percent": 0.0,
+  "machine_percent": 0.0,
+  "logical_cpus": 20,
+  "graphics_modules": []
+}

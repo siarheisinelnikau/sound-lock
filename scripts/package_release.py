@@ -31,6 +31,7 @@ def package(artifact: Path, output: Path) -> str:
         files = [(executable, "sound-lock.exe"), (artifact / "README.md", "README.md"), (artifact / "LICENSE", "LICENSE")]
         files.extend((source, source.relative_to(artifact).as_posix()) for source in sorted((artifact / "docs/screenshots").glob("*.png")))
         files.extend((source, source.relative_to(artifact).as_posix()) for source in sorted((artifact / "vendor/egui-software").glob("LICENSE-*")))
+        files.extend((source, source.relative_to(artifact).as_posix()) for source in sorted((artifact / "licenses").glob("*.txt")))
         for source, name in files:
             # Stable archive metadata permits retrying an interrupted draft upload.
             info = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))

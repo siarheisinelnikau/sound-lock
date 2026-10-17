@@ -1,0 +1,87 @@
+{
+  "executable": "E:\\work\\github\\sound-lock\\target\\release\\sound-lock.exe",
+  "sha256": "783ec2a70aa1fe04c110a0475830e393bb7510d7d8f8a4e2716f0617068bbe18",
+  "scope": "Resource-only LoadImageW / DrawIconEx proof; application not launched; OS tray/window integration unverified",
+  "icons": [
+    {
+      "size": 16,
+      "visiblePixels": 185,
+      "alphaBounds": [
+        1,
+        1,
+        15,
+        15
+      ]
+    },
+    {
+      "size": 20,
+      "visiblePixels": 293,
+      "alphaBounds": [
+        1,
+        1,
+        19,
+        19
+      ]
+    },
+    {
+      "size": 24,
+      "visiblePixels": 421,
+      "alphaBounds": [
+        1,
+        1,
+        23,
+        23
+      ]
+    },
+    {
+      "size": 32,
+      "visiblePixels": 749,
+      "alphaBounds": [
+        1,
+        1,
+        31,
+        31
+      ]
+    },
+    {
+      "size": 48,
+      "visiblePixels": 1701,
+      "alphaBounds": [
+        1,
+        1,
+        47,
+        47
+      ]
+    },
+    {
+      "size": 64,
+      "visiblePixels": 3017,
+      "alphaBounds": [
+        1,
+        1,
+        63,
+        63
+      ]
+    },
+    {
+      "size": 128,
+      "visiblePixels": 12093,
+      "alphaBounds": [
+        2,
+        2,
+        126,
+        126
+      ]
+    },
+    {
+      "size": 256,
+      "visiblePixels": 48405,
+      "alphaBounds": [
+        4,
+        4,
+        252,
+        252
+      ]
+    }
+  ]
+}

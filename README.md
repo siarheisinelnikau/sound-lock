@@ -37,6 +37,12 @@ Processing starts only when you press **Start**. A left click on the tray icon t
 
 **Upgrading from 0.1.3 or earlier?** Quit the old version and download 0.1.4 manually once. The old updater cannot discover the renamed EXE. Your existing settings are preserved. Later compatible releases can be installed from **Settings > Updates**.
 
+## Shared updater dependency
+
+Build with Rust 1.95 or newer and keep `rust-auto-updator` beside this repository. Cargo resolves `../rust-auto-updator/crates/rust-auto-updator`; a checkout of Sound Lock alone is insufficient. CI and release runners must provision that sibling source before Cargo runs. No remote checkout URL is assumed until the library has a canonical published source. The library's MIT notice is included in `licenses/rust-auto-updator.txt` and release archives.
+
+`assets/app.ico` embeds native 16, 20, 24, 32, 48, 64, 128 and 256px variants into the executable. Runtime window artwork uses the same equalizer mark; the tray rasterizes at the Windows small-icon metric. `scripts/inspect-icons.ps1 -ExecutablePath target/release/sound-lock.exe` loads packaged resources without starting the app and saves a light/dark native icon proof under `target/icon-proof`.
+
 ## Build from source
 
 Requirements: Windows 10/11 x64, Rust 1.95+ with an [MSVC toolchain](https://rustup.rs/), and Visual Studio Build Tools with **Desktop development with C++**.
@@ -63,9 +69,9 @@ Static windows wait for input or a background result. Audio monitoring and delay
 
 Open **Settings > Updates** to see the installed version and use **Check for updates**. **Check for updates on startup** is enabled by default and can be turned off; the saved opt-out prevents startup requests. Checking is asynchronous, uses the public stable release API without login, and does not interrupt audio. A new version highlights Settings in the popup and appears in the tray menu/tooltip. Startup checks never open no-update or network-error dialogs. Prereleases and downgrades are not offered.
 
-Click **Download and install** to download, verify and install the update, then restart. Startup checks never download or install an update; that requires your action. **Install later** defers the restart while the requested download continues; afterward use **Restart & install** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Restart saves settings, restores browser/native audio and stops processing before handing over to a copy of the current executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
+Click **Download and install** to download, verify and install the update, then restart. Startup checks never download or install an update; that requires your action. **Install later** defers the restart while the requested download continues; afterward use **Restart & install** when convenient. The app checks the official release URLs, expected sizes, SHA256SUMS manifest, GitHub's asset digest when present, and the Windows x64 executable header. Restart saves settings, restores browser/native audio and stops processing before handing over to the shared updater helper, copied from the verified new executable. The helper waits for that exact process to exit, replaces the EXE in place with a backup, then launches the new version. Settings and the executable's existing filename/location are preserved; processing remains stopped until you start it again.
 
-If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads are staged in `%LOCALAPPDATA%\SoundLock\updates`, with installation/recovery files in a private `sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `update.log`/`old.exe` for diagnosis or manual restoration.
+If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads and installation/recovery files are staged in a private `.sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `previous.exe` for diagnosis or manual restoration.
 
 Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Install 0.1.4 manually when coming from 0.1.3 or earlier:** the release EXE was renamed to `SoundLock-v0.1.4.exe`, and the old updater only recognizes its old filename pattern. The new updater understands canonical names and retains historical name support. No legacy-named EXE is published for 0.1.4.
 
@@ -162,7 +168,7 @@ cargo run -p soundlock-dsp --example render_demo -- .local/demo
 
 Creates `before.wav` and `after.wav` from synthetic quiet scenes and bursts. This validates dynamics, not speech recognition or subjective movie quality. Audio is processed locally and is never uploaded or recorded. Optional driver setup downloads the official package over HTTPS and uses Windows signature verification; only the explicit offline example writes generated audio.
 
-The normal test suite covers modal behavior, audio processing, transactional routing/recovery, update validation/replacement and package handling. An opt-in native policy check switches and restores **only the test executable's own** preferences using an unstarted, silent audio session:
+The normal test suite covers modal behavior, audio processing, transactional routing/recovery, updater integration and package handling. Shared release, integrity and replacement regressions live in `rust-auto-updator`. An opt-in native policy check switches and restores **only the test executable's own** preferences using an unstarted, silent audio session:
 
 ```powershell
 cargo test --locked routing::windows::tests::real_policy_roundtrip_restores_own_process_preferences -- --ignored
@@ -174,15 +180,11 @@ An additional network-dependent check prepares the real driver package **without
 cargo test --locked driver::tests::official_package_prepares_without_installation -- --ignored
 ```
 
-Updater checks against real native helper processes replace and restart **only temporary fixture apps**, including a failed-startup rollback. Windows CI runs these after building its release EXE. For a local check:
+The shared updater has a bounded native smoke check. It replaces only temporary fixture executables and never launches Sound Lock or opens audio devices:
 
 ```powershell
-$env:SOUND_LOCK_TEST_EXE = (Resolve-Path target/release/sound-lock.exe).Path
-cargo test --locked update::install::tests::native_helper_ -- --ignored
-cargo test --locked update::tests::official_github_release_download_verifies_without_installing -- --ignored
+cargo run --manifest-path ../rust-auto-updator/Cargo.toml -p rust-auto-updator --example native-smoke --features smoke-test --locked -- --test-updater
 ```
-
-The last command downloads/verifies the latest public release without installing or executing it.
 
 A real-window regression is available on an interactive Windows desktop:
 
@@ -218,7 +220,7 @@ src/tray.rs            Windows tray menu, icon callbacks and viewport wakeups
 src/config.rs          profiles and persisted settings
 src/driver.rs          optional official driver download and interactive setup
 src/routing/           per-browser audio policy, durable recovery and ownership lock
-src/update/            GitHub release checking, verified downloads and native self-update
+src/update/            Product adapter and legacy startup receipts; shared updater owns release/download/install logic
 ```
 
 Inspired by [Sound Lock from 3 APPES](https://www.3appes.com/en/sound-lock/). This is an independent implementation, not affiliated with 3 APPES. Browser-extension work belongs in a separate project.

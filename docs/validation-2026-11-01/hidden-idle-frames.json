@@ -1,0 +1,22 @@
+{
+  "frame_max_ms": null,
+  "frame_median_ms": null,
+  "frame_p95_ms": null,
+  "input_event_counts": {},
+  "logic_calls_after_warmup": 0,
+  "logic_calls_including_warmup": 4,
+  "painted_popup_frames": 0,
+  "painted_root_frames": 0,
+  "renderer": "CPU / Windows GDI",
+  "repaint_causes": {},
+  "seconds": 10.0005136,
+  "skipped_unchanged_frames": 0,
+  "warmup_seconds": 2,
+  "windows_at_exit": [
+    {
+      "minimized": false,
+      "surface": "settings",
+      "visible": false
+    }
+  ]
+}

@@ -98,6 +98,13 @@ impl Host {
             .with_transparent(false)
             .with_undecorated_shadow(false);
         let window = Arc::new(event_loop.create_window(attributes)?);
+        if id == ViewportId::ROOT {
+            window.set_taskbar_icon(Some(winit::window::Icon::from_rgba(
+                crate::tray::icon_rgba(64),
+                64,
+                64,
+            )?));
+        }
         if id == popup::id() {
             gdi::transparent(&window)?;
         }
@@ -699,7 +706,9 @@ pub fn run(startup: update::Startup) -> Result<()> {
         }
     });
     let started = Instant::now();
-    let preview = std::env::args().any(|a| a == "--preview");
+    let preview = std::env::args().any(|a| a == "--preview")
+        || (cfg!(any(feature = "ui-capture", feature = "tray-smoke-test"))
+            && std::env::var("SOUND_LOCK_PREVIEW").as_deref() == Ok("1"));
     let stop_at = preview
         .then(|| {
             std::env::var("SOUND_LOCK_RENDER_SECONDS")

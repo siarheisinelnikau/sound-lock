@@ -26,10 +26,8 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: cargo build --release --locked
-      - name: Verify updater replacement and rollback on temporary apps
-        env:
-          SOUND_LOCK_TEST_EXE: ${{ github.workspace }}\target\release\sound-lock.exe
-        run: cargo test --locked update::install::tests::native_helper_ -- --ignored
+      - name: Verify the shared updater on temporary apps
+        run: cargo run --manifest-path ../rust-auto-updator/Cargo.toml -p rust-auto-updator --example native-smoke --features smoke-test --locked -- --test-updater
       - uses: actions/upload-artifact@v7
         with:
           name: sound-lock-windows-x64
@@ -39,6 +37,7 @@ jobs:
             README.md
             docs/screenshots/*.png
             vendor/egui-software/LICENSE-*
+            licenses/*.txt
 
   release:
     needs: build

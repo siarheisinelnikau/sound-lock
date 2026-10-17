@@ -1,0 +1,25 @@
+{
+  "frame_max_ms": null,
+  "frame_median_ms": null,
+  "frame_p95_ms": null,
+  "input_event_counts": {},
+  "logic_calls_after_warmup": 0,
+  "logic_calls_including_warmup": 3,
+  "painted_popup_frames": 0,
+  "painted_root_frames": 0,
+  "renderer": "CPU / Windows GDI",
+  "repaint_causes": {
+    "C:\\Users\\user\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\egui-0.37.0\\src\\context.rs:4570 ": 5,
+    "C:\\Users\\user\\.cargo\\registry\\src\\index.crates.io-1949cf8c6b5b557f\\egui-0.37.0\\src\\theme\\mod.rs:37 ": 14
+  },
+  "seconds": 10.0005277,
+  "skipped_unchanged_frames": 1,
+  "warmup_seconds": 2,
+  "windows_at_exit": [
+    {
+      "minimized": false,
+      "surface": "settings",
+      "visible": true
+    }
+  ]
+}

@@ -118,7 +118,17 @@ mod windows {
             TrayIconEvent::set_event_handler(Some(move |event| handler(event)));
             let icon = TrayIconBuilder::new()
                 .with_tooltip("Sound Lock · steady sound")
-                .with_icon(Icon::from_rgba(icon_rgba(32), 32, 32)?)
+                .with_icon({
+                    // Rasterize at the shell's native small-icon metric, rather
+                    // than relying on a fixed 32px bitmap to survive shrinking.
+                    let size = unsafe {
+                        windows_sys::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                            windows_sys::Win32::UI::WindowsAndMessaging::SM_CXSMICON,
+                        )
+                    }
+                    .clamp(16, 64) as u32;
+                    Icon::from_rgba(icon_rgba(size as usize), size, size)?
+                })
                 .with_menu(Box::new(menu))
                 .with_menu_on_left_click(false)
                 .build()?;

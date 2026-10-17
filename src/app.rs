@@ -770,9 +770,6 @@ impl App {
         }
         ui.separator();
         ui.horizontal(|ui| {
-            if self.updater.busy() && self.updater.progress().is_none() {
-                ui.spinner();
-            }
             ui.add(egui::Label::new(&self.updater.message).truncate())
                 .on_hover_text(&self.updater.message);
         });
@@ -835,7 +832,7 @@ impl App {
             self.stop_audio().map_err(|error| {
                 anyhow::anyhow!("Could not restore audio before updating: {error:#}")
             })?;
-            prepared.handoff();
+            prepared.handoff()?;
             self.action(Action::Quit, ctx);
             Ok(())
         })();
@@ -1128,7 +1125,7 @@ impl App {
                 250
             }));
         }
-        if self.updater.busy() || self.driver.busy() {
+        if self.driver.busy() {
             include(Duration::from_millis(100));
         }
         if self.dirty {
@@ -1605,7 +1602,10 @@ mod tests {
         app.toggle(&ctx);
         assert!(!app.is_running() && app.next_poll().is_none());
         app.updater = update::fixture_updater(false, true);
-        assert!(app.next_poll().is_some());
+        assert!(
+            app.next_poll().is_none(),
+            "the shared updater wakes on worker events"
+        );
     }
     #[test]
     fn settings_layout_and_font_atlas_follow_native_pixel_density() {

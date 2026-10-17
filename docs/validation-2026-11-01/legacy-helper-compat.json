@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "old_helper": "published SoundLock 0.1.3",
+  "new_executable_sha256": "783ec2a70aa1fe04c110a0475830e393bb7510d7d8f8a4e2716f0617068bbe18",
+  "verified": [
+    "wait for exact parent exit",
+    "replace isolated fixture",
+    "new CPU/GDI host initialized and acknowledged its first native frame",
+    "known legacy staging files cleaned",
+    "new isolated preview exited after 10 seconds"
+  ],
+  "scope": "no computer use, no real audio or settings"
+}
