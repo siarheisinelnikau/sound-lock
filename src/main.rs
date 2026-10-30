@@ -4,10 +4,17 @@ mod app;
 mod audio;
 mod config;
 mod driver;
+mod routing;
 mod system;
 mod tray;
 
 fn main() -> eframe::Result {
+    if std::env::args().any(|arg| arg == "--probe-routing") {
+        if let Err(e) = routing::probe() {
+            eprintln!("{e:#}");
+        }
+        return Ok(());
+    }
     if std::env::args().any(|arg| arg == "--list-devices") {
         match audio::devices() {
             Ok(devices) => {
