@@ -6,11 +6,11 @@ A dedicated COM-initialized worker owns `IAudioMeterInformation` and `IAudioEndp
 
 Driver-quantized volume values are read back after setting them. An external volume change becomes the new baseline. A scoped controller restores that baseline on Stop, normal exit or a handled worker error, unless an external change superseded the last written value. A forced process termination cannot restore anything. Muting is never changed.
 
-This is reactive gain control, not DSP. It cannot anticipate transients or amplify beyond device limits. The app does not install or register an APO, driver, browser extension or virtual endpoint.
+This is reactive gain control, not DSP. It cannot anticipate transients or amplify beyond device limits. This path requires no APO, driver, browser extension or virtual endpoint. Optional driver setup is separate and starts only from explicit user actions.
 
 ## PCM bridge
 
-The player sends its original output to an existing unused playback endpoint. CPAL on Windows builds an input stream on that rendering device with `AUDCLNT_STREAMFLAGS_LOOPBACK`. The device's **output** configuration is used when opening capture. A second, different rendering device receives processed audio. The original source must be inaudible; capture does not suppress it.
+The player sends its original output to an inaudible playback endpoint: optional VB-CABLE's CABLE Input or an existing unused physical output. CPAL on Windows builds an input stream on that rendering device with `AUDCLNT_STREAMFLAGS_LOOPBACK`. The device's **output** configuration is used when opening capture. A different rendering endpoint receives processed audio. With VB-CABLE only the listening endpoint needs physical hardware. The original source must be inaudible; capture does not suppress it.
 
 The capture callback converts mono/stereo samples to `[f32; 2]` and pushes frames into a bounded wait-free SPSC queue. The output callback interpolates frames, processes dynamics and converts to the listening device's format. No file I/O, logging, mutex or allocation occurs in the normal audio callbacks. Atomics carry settings, meter values and stream errors to/from the UI.
 
@@ -30,7 +30,15 @@ A 5 ms delay and preallocated monotonic maximum queue drive the final stereo-lin
 
 ## UI and tray lifecycle
 
-The main viewport is 420 × 446 logical pixels and contains no scrolling container. Device controls and explanations live in a separate setup dialog. All authored UI text and documentation are English.
+The main viewport is 420 × 446 logical pixels and contains no scrolling container. Audio and optional Driver settings live in an `egui::Modal`. Its full-viewport black backdrop has alpha 170 and intercepts pointer/keyboard input to underlying controls. Backdrop clicks neither activate controls nor dismiss the modal. Close and Escape dismiss it; an open combo box consumes Escape first. Headless tests exercise real profile buttons while the modal is open and verify both pages fit the viewport. All authored UI text and documentation are English.
+
+## Optional driver setup
+
+Download and installation are separate actions on a background worker. Nothing is fetched or launched on startup. The HTTPS client uses Windows TLS roots, a global timeout and a download size bound. The archive is pinned to the inspected Pack 45 SHA-256 and is saved atomically only after verification.
+
+Installation rechecks the cached package, extracts all companions into a fresh cache subdirectory and verifies the setup executable with `WinVerifyTrust`. Extraction rejects traversal, Windows device/stream names, symlinks, duplicate files and excessive size/file counts. `ShellExecuteExW` with the `runas` verb then opens the vendor's interactive setup; there are no silent flags. The app neither accepts license terms nor triggers a restart itself. The UI distinguishes installer closure from actual endpoint detection, and installation is disabled while audio processing is active or VB-CABLE is already detected.
+
+The worker waits for the setup process without blocking the UI, then refreshes devices. Successful setup still requires Windows restart. `Use VB-CABLE` explicitly selects the virtual source and Bridge mode; browser routing remains a manual Windows mixer action. No vendor binaries are committed to this repository.
 
 Hidden winit windows may not repaint, so queuing an Open action plus requesting repaint can leave the action unprocessed. Tray callbacks now restore the actual root HWND with `ShowWindow(SW_RESTORE)` and request foreground focus **before** waiting for egui to consume the menu event. Both the Open menu and left-click use this path. Other tray actions temporarily wake the event loop; a previously hidden window is hidden again after handling them. The native processing worker continues independently while the UI is hidden.
 
