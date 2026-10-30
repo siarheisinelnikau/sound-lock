@@ -4,6 +4,7 @@ use crate::{
     driver, routing,
     system::Guard,
     tray::{Action, Tray},
+    update,
 };
 use eframe::egui::{self, Color32, FontId, RichText, Stroke, Vec2};
 use raw_window_handle::HasWindowHandle;
@@ -30,6 +31,7 @@ enum SetupPage {
     #[default]
     Audio,
     Driver,
+    Updates,
 }
 
 pub struct App {
@@ -44,6 +46,8 @@ pub struct App {
     setup: bool,
     setup_page: SetupPage,
     driver: driver::Setup,
+    updater: update::Updater,
+    startup: update::Startup,
     dirty: bool,
     last_edit: Instant,
     quitting: bool,
@@ -53,7 +57,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, startup: update::Startup) -> Self {
         let ctx = &cc.egui_ctx;
         ctx.set_visuals(egui::Visuals::dark());
         let mut style = (*ctx.style()).clone();
@@ -98,6 +102,8 @@ impl App {
             setup: false,
             setup_page: SetupPage::Audio,
             driver: driver::Setup::default(),
+            updater: update::Updater::default(),
+            startup,
             dirty: false,
             last_edit: Instant::now(),
             quitting: false,
@@ -107,6 +113,15 @@ impl App {
         };
         app.refresh_devices();
         app.sync();
+        if let Some(error) = app.startup.failure.take() {
+            app.updater.error = Some(error);
+            app.updater.message =
+                "The previous version was restored. Review the error or retry.".into();
+            app.setup_page = SetupPage::Updates;
+            app.setup = true;
+        } else if app.config.check_updates_on_start {
+            app.updater.check(ctx);
+        }
         app
     }
     fn sync(&self) {
@@ -159,14 +174,18 @@ impl App {
                         .any(|d| Some(&d.id) == self.config.input_id.as_ref())))
     }
     fn stop(&mut self) {
-        // Restore the original destination before tearing down the PCM bridge.
-        if let Err(error) = self.routing.stop() {
+        if let Err(error) = self.stop_audio() {
             self.error = Some(format!("{error:#}"));
         }
+    }
+    fn stop_audio(&mut self) -> anyhow::Result<()> {
+        // Restore the original destination before tearing down the PCM bridge.
+        let result = self.routing.stop();
         self.route_status.clear();
         self.active = None;
         self.input_level = 0.0;
         self.reduction = 0.0;
+        result
     }
     fn toggle(&mut self) {
         if self.active.is_some() {
@@ -244,8 +263,24 @@ impl App {
             }
             ui.label(RichText::new("sound lock").size(22.0).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Setup").clicked() {
-                    self.setup = !self.setup;
+                let available = self.updater.release.is_some();
+                if ui
+                    .button(
+                        RichText::new(if available {
+                            "Setup · Update"
+                        } else {
+                            "Setup"
+                        })
+                        .color(if available { MINT } else { TEXT }),
+                    )
+                    .clicked()
+                {
+                    if available {
+                        self.setup_page = SetupPage::Updates;
+                        self.setup = true;
+                    } else {
+                        self.setup = !self.setup;
+                    }
                 }
             });
         });
@@ -609,6 +644,84 @@ impl App {
         });
         ui.label(RichText::new("After restart: Refresh devices, Use VB-CABLE, select your browser in Audio, then Start processing.").size(11.0).color(MUTED));
     }
+    fn updates_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Sound Lock").strong());
+            ui.label(RichText::new(format!("v{}", update::VERSION)).color(MINT));
+        });
+        if ui
+            .checkbox(
+                &mut self.config.check_updates_on_start,
+                "Check for updates on launch",
+            )
+            .changed()
+        {
+            self.changed();
+        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(
+                    !self.updater.busy() && !self.driver.installing(),
+                    egui::Button::new("Check GitHub"),
+                )
+                .clicked()
+            {
+                self.updater.check(ui.ctx());
+            }
+            ui.hyperlink_to("All releases", update::RELEASES);
+        });
+        ui.separator();
+        ui.label(&self.updater.message);
+        if self.updater.busy() {
+            ui.spinner();
+        }
+        if let Some(progress) = self.updater.progress() {
+            ui.add(egui::ProgressBar::new(progress).show_percentage());
+        }
+        if let Some(release) = self.updater.release.clone() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(format!("Available: v{}", release.version)).strong());
+                ui.hyperlink_to("Release notes", release.notes_url());
+            });
+            let ready = self.updater.ready();
+            if ui
+                .add_enabled(
+                    !self.updater.busy() && !self.driver.busy(),
+                    egui::Button::new(if ready {
+                        "Restart & update"
+                    } else {
+                        "Download update"
+                    }),
+                )
+                .clicked()
+            {
+                if ready {
+                    let result = (|| -> anyhow::Result<()> {
+                        let prepared = self.updater.prepare_restart()?;
+                        self.config.save()?;
+                        self.stop_audio().map_err(|e| {
+                            anyhow::anyhow!("Could not restore audio before updating: {e:#}")
+                        })?;
+                        prepared.handoff();
+                        self.quitting = true;
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        Ok(())
+                    })();
+                    if let Err(error) = result {
+                        self.updater.error = Some(format!("{error:#}"));
+                    }
+                } else {
+                    self.updater.download(ui.ctx());
+                }
+            }
+        }
+        ui.label(RichText::new("Downloads are verified before installation. Restart stops processing and saves your settings; start processing again when ready.").size(12.0).color(MUTED));
+        if let Some(error) = &self.updater.error {
+            ui.separator();
+            ui.add(egui::Label::new(RichText::new(error).color(AMBER)).truncate())
+                .on_hover_text(error);
+        }
+    }
     fn show_setup_modal(&mut self, ctx: &egui::Context) -> Option<egui::Rect> {
         if !self.setup {
             return None;
@@ -620,7 +733,7 @@ impl App {
                 ui.set_width(350.0);
                 let mut close = false;
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Audio setup").size(18.0).strong());
+                    ui.label(RichText::new("Settings").size(18.0).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         close = ui.small_button("Close").clicked();
                     });
@@ -632,11 +745,13 @@ impl App {
                         SetupPage::Driver,
                         "Driver (optional)",
                     );
+                    ui.selectable_value(&mut self.setup_page, SetupPage::Updates, "Updates");
                 });
                 ui.separator();
                 match self.setup_page {
                     SetupPage::Audio => self.audio_setup_ui(ui),
                     SetupPage::Driver => self.driver_setup_ui(ui),
+                    SetupPage::Updates => self.updates_ui(ui),
                 }
                 close
             });
@@ -654,6 +769,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        self.updater.poll();
         if self.driver.poll() {
             self.refresh_devices();
         }
@@ -759,6 +875,9 @@ impl eframe::App for App {
                 });
             });
         let _ = self.show_setup_modal(ctx);
+        if let Err(error) = self.startup.acknowledge() {
+            self.updater.error = Some(format!("Could not confirm update startup: {error:#}"));
+        }
         if self.hidden && !self.quitting {
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
@@ -816,6 +935,8 @@ mod tests {
             setup: false,
             setup_page: SetupPage::Audio,
             driver: driver::Setup::default(),
+            updater: update::Updater::default(),
+            startup: update::Startup::default(),
             dirty: false,
             last_edit: Instant::now(),
             quitting: false,
@@ -927,6 +1048,7 @@ mod tests {
             (SetupPage::Audio, Source::Windows),
             (SetupPage::Audio, Source::Bridge),
             (SetupPage::Driver, Source::Windows),
+            (SetupPage::Updates, Source::Windows),
         ] {
             let ctx = egui::Context::default();
             let mut app = app();
@@ -940,6 +1062,20 @@ mod tests {
                 screen.contains_rect(modal.unwrap()),
                 "Dialog must fit: {:?}",
                 modal
+            );
+        }
+        for (ready, downloading) in [(false, false), (true, false), (false, true)] {
+            let ctx = egui::Context::default();
+            let mut app = app();
+            app.setup = true;
+            app.setup_page = SetupPage::Updates;
+            app.updater = update::fixture_updater(ready, downloading);
+            let mut time = 0.0;
+            frame(&ctx, &mut app, vec![], &mut time);
+            let (_, modal) = frame(&ctx, &mut app, vec![], &mut time);
+            assert!(
+                screen.contains_rect(modal.unwrap()),
+                "Update states must fit: {modal:?}"
             );
         }
     }

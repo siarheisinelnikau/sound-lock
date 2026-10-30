@@ -47,6 +47,7 @@ pub struct Config {
     pub peak_limit: f32,
     pub auto_route_browser: bool,
     pub browser: crate::routing::Browser,
+    pub check_updates_on_start: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,6 +69,7 @@ impl Default for Config {
             peak_limit: 50.0,
             auto_route_browser: true,
             browser: crate::routing::Browser::Chrome,
+            check_updates_on_start: true,
         }
     }
 }
