@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the version in Cargo.toml after all checks pass
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -28,3 +33,49 @@ jobs:
             target/release/sound-lock.exe
             LICENSE
             README.md
+
+  release:
+    needs: build
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Release v')) ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish_release))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: sound-lock-windows-x64
+          path: artifact
+      - name: Package and publish the checked Windows build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(python3 scripts/package_release.py artifact dist)
+          tag="v$version"
+          notes="docs/releases/$version.md"
+          test -s "$notes"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            message=$(jq -r '.head_commit.message | split("\n")[0]' "$GITHUB_EVENT_PATH")
+            test "$message" = "Release $tag"
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > tag.json 2>/dev/null; then
+            python3 -c 'import json, os; t=json.load(open("tag.json"))["object"]; assert t["type"] == "commit" and t["sha"] == os.environ["GITHUB_SHA"], "Existing tag does not point to this checked commit"'
+          fi
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish > release.json 2>/dev/null; then
+            python3 -c 'import json, os; r=json.load(open("release.json")); assert r["isDraft"] and r["targetCommitish"] == os.environ["GITHUB_SHA"], "Refusing to replace an existing published release or a different draft"'
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Sound Lock $tag" --notes-file "$notes" --draft
+          fi
+          gh release upload "$tag" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
