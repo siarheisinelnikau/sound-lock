@@ -10,6 +10,24 @@ pub enum Mode {
     Speakers,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn startup_update_preference_defaults_on_and_persists_off() {
+        let previous: Config = serde_json::from_str("{}").unwrap();
+        assert!(previous.check_updates_on_start);
+        let disabled = Config {
+            check_updates_on_start: false,
+            ..previous
+        };
+        let restored: Config =
+            serde_json::from_slice(&serde_json::to_vec(&disabled).unwrap()).unwrap();
+        assert!(!restored.check_updates_on_start);
+    }
+}
+
 impl Mode {
     pub const ALL: [Self; 3] = [Self::Night, Self::Headphones, Self::Speakers];
     pub fn label(self) -> &'static str {

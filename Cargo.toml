@@ -4,21 +4,23 @@ resolver = "2"
 
 [package]
 name = "sound-lock"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.95"
 description = "A Windows tray app for quieter peaks, clearer quiet scenes and up to 4x gain"
 license = "MIT"
 
 [features]
 screenshot = ["eframe/__screenshot"]
+ui-capture = ["dep:png"]
+tray-smoke-test = []
 
 [dependencies]
 anyhow = "1"
 cpal = "=0.17.3"
-eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "accesskit"] }
+eframe = { version = "=0.37.0", default-features = false, features = ["default_fonts", "glow", "accesskit", "links", "clipboard"] }
+png = { version = "0.18.1", optional = true }
 rtrb = "=0.3.2"
-raw-window-handle = "0.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
@@ -30,7 +32,7 @@ zip = { version = "=4.6.1", default-features = false, features = ["deflate-flate
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = { version = "=0.21.3", default-features = false }
-windows = { version = "0.61", features = ["Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_WinRT", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Security_WinTrust", "Win32_Security_Cryptography", "Win32_Foundation"] }
+windows = { version = "0.61", features = ["Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Threading", "Win32_System_Registry", "Win32_System_WinRT", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_Graphics_Gdi", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_Security_WinTrust", "Win32_Security_Cryptography", "Win32_Foundation"] }
 
 [profile.release]
 lto = "thin"
