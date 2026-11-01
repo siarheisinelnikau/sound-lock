@@ -1,4 +1,8 @@
-use crate::{config::Mode, popup::Anchor};
+use crate::{
+    config::Mode,
+    i18n::{self, tr},
+    popup::Anchor,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
@@ -27,6 +31,9 @@ mod windows {
     pub struct Tray {
         icon: TrayIcon,
         events: Receiver<Action>,
+        show: MenuItem,
+        settings: MenuItem,
+        quit: MenuItem,
         audio: MenuItem,
         updates: MenuItem,
         processing: CheckMenuItem,
@@ -40,6 +47,7 @@ mod windows {
         menu_actions: Vec<(tray_icon::menu::MenuId, Action)>,
     }
     struct State {
+        language: i18n::Language,
         running: bool,
         enabled: bool,
         mode: Mode,
@@ -56,16 +64,16 @@ mod windows {
     impl Tray {
         pub fn new(ctx: &egui::Context) -> anyhow::Result<Self> {
             let menu = Menu::new();
-            let show = MenuItem::new("Sound controls", true, None);
-            let settings = MenuItem::new("Settings", true, None);
-            let updates = MenuItem::new("Check for updates", true, None);
-            let audio = MenuItem::new("Start processing", true, None);
-            let processing = CheckMenuItem::new("Leveling enabled", true, true, None);
+            let show = MenuItem::new(tr("Sound controls"), true, None);
+            let settings = MenuItem::new(tr("Settings"), true, None);
+            let updates = MenuItem::new(tr("Check for updates"), true, None);
+            let audio = MenuItem::new(tr("Start processing"), true, None);
+            let processing = CheckMenuItem::new(tr("Leveling enabled"), true, true, None);
             let modes: Vec<_> = Mode::ALL
                 .iter()
-                .map(|mode| CheckMenuItem::new(mode.label(), true, *mode == Mode::Night, None))
+                .map(|mode| CheckMenuItem::new(tr(mode.label()), true, *mode == Mode::Night, None))
                 .collect();
-            let quit = MenuItem::new("Quit Sound Lock", true, None);
+            let quit = MenuItem::new(tr("Quit Sound Lock"), true, None);
             menu.append_items(&[
                 &show,
                 &settings,
@@ -117,7 +125,7 @@ mod windows {
             let handler = click_handler.clone();
             TrayIconEvent::set_event_handler(Some(move |event| handler(event)));
             let icon = TrayIconBuilder::new()
-                .with_tooltip("Sound Lock · steady sound")
+                .with_tooltip(tr("Sound Lock · steady sound"))
                 .with_icon({
                     // Rasterize at the shell's native small-icon metric, rather
                     // than relying on a fixed 32px bitmap to survive shrinking.
@@ -137,6 +145,9 @@ mod windows {
             Ok(Self {
                 icon,
                 events,
+                show,
+                settings,
+                quit,
                 audio,
                 updates,
                 processing,
@@ -158,32 +169,45 @@ mod windows {
         }
         pub fn sync(&self, running: bool, enabled: bool, mode: Mode, update: Option<&str>) {
             if self.last_state.borrow().as_ref().is_some_and(|last| {
-                last.running == running
+                last.language == i18n::language()
+                    && last.running == running
                     && last.enabled == enabled
                     && last.mode == mode
                     && last.update.as_deref() == update
             }) {
                 return;
             }
+            self.show.set_text(tr("Sound controls"));
+            self.settings.set_text(tr("Settings"));
+            self.quit.set_text(tr("Quit Sound Lock"));
+            self.processing.set_text(tr("Leveling enabled"));
             self.audio.set_text(if running {
-                "Stop processing"
+                tr("Stop processing")
             } else {
-                "Start processing"
+                tr("Start processing")
             });
             self.processing.set_checked(enabled);
             for (i, item) in self.modes.iter().enumerate() {
                 item.set_checked(Mode::ALL[i] == mode);
+                item.set_text(tr(Mode::ALL[i].label()));
             }
             self.updates.set_text(update.map_or_else(
-                || "Check for updates".into(),
-                |version| format!("Update available: v{version}"),
+                || tr("Check for updates").into(),
+                |version| i18n::message("Update available: v{version}", "{version}", version),
             ));
             let tooltip = update.map_or_else(
-                || "Sound Lock · steady sound".into(),
-                |version| format!("Sound Lock · update v{version} available"),
+                || tr("Sound Lock · steady sound").into(),
+                |version| {
+                    i18n::message(
+                        "Sound Lock · update v{version} available",
+                        "{version}",
+                        version,
+                    )
+                },
             );
             let _ = self.icon.set_tooltip(Some(tooltip));
             *self.last_state.borrow_mut() = Some(State {
+                language: i18n::language(),
                 running,
                 enabled,
                 mode,

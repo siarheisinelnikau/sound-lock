@@ -180,7 +180,7 @@ impl Prepared {
 #[cfg(any(test, feature = "ui-capture"))]
 fn fixture_release() -> Release {
     let config = config().unwrap();
-    let version = "0.1.5";
+    let version = "0.2.1";
     let metadata = serde_json::json!({
         "tag_name": format!("v{version}"), "draft": false, "prerelease": false,
         "html_url": format!("{RELEASES}/tag/v{version}"),
@@ -233,7 +233,7 @@ mod tests {
     fn canonical_product_asset_uses_the_shared_parser() {
         assert_eq!(
             fixture_release().shared.executable_name(),
-            "SoundLock-v0.1.5.exe"
+            "SoundLock-v0.2.1.exe"
         );
     }
 }

@@ -3,7 +3,7 @@ use egui::{self, Pos2, Vec2};
 pub const TITLE: &str = "Sound Lock — Sound controls";
 pub const SETTINGS_TITLE: &str = "Sound Lock — Settings";
 pub const SIZE: Vec2 = Vec2::new(368.0, 304.0);
-pub const SETTINGS_SIZE: Vec2 = Vec2::new(460.0, 462.0);
+pub const SETTINGS_SIZE: Vec2 = Vec2::new(560.0, 620.0);
 pub fn id() -> egui::ViewportId {
     egui::ViewportId::from_hash_of("sound-controls-popup")
 }

@@ -7,6 +7,7 @@ mod capture;
 mod config;
 mod desktop;
 mod driver;
+mod i18n;
 mod popup;
 mod routing;
 mod system;

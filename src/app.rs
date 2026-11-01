@@ -1,4 +1,5 @@
-use crate::theme::{ACCENT, AMBER, BG, BORDER, CARD, MUTED, SELECTED, TEXT, card};
+use crate::i18n::{self, tr};
+use crate::theme::card;
 use crate::{
     audio::{self, Devices, Engine, Shared},
     config::{Config, Mode, Source},
@@ -72,7 +73,7 @@ impl App {
                 && std::env::var("SOUND_LOCK_PREVIEW").as_deref() == Ok("1"));
         let quiet = std::env::args().any(|a| a == "--startup");
         let preferences = std::env::args().any(|a| a == "--settings");
-        let (config, mut error) = if preview {
+        let (mut config, mut error) = if preview {
             (
                 Config {
                     source: Source::Bridge,
@@ -86,6 +87,22 @@ impl App {
         } else {
             Config::load()
         };
+        if preview {
+            if let Ok(code) = std::env::var("SOUND_LOCK_LANGUAGE")
+                && let Some(language) = i18n::Language::from_code(&code)
+            {
+                config.language = language;
+            }
+            if std::env::var("SOUND_LOCK_THEME").as_deref() == Ok("light") {
+                config.theme = theme::Theme::Light;
+            }
+        }
+        i18n::set_language(config.language);
+        theme::apply_theme(ctx, config.theme);
+        ctx.send_viewport_cmd_to(
+            egui::ViewportId::ROOT,
+            egui::ViewportCommand::Title(tr(popup::SETTINGS_TITLE).into()),
+        );
         let tray = match Tray::new(ctx) {
             Ok(tray) => Some(tray),
             Err(e) => {
@@ -405,10 +422,10 @@ impl App {
                         RichText::new(device_label(
                             &self.devices,
                             self.config.output_id.as_ref(),
-                            "Choose an output in Settings",
+                            tr("Choose an output in Settings"),
                         ))
                         .size(10.0)
-                        .color(MUTED),
+                        .color(theme::palette().muted),
                     )
                     .truncate(),
                 );
@@ -416,7 +433,7 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .small_button("×")
-                    .on_hover_text("Dismiss · Esc")
+                    .on_hover_text(tr("Dismiss · Esc"))
                     .clicked()
                 {
                     self.hide_popup(ui.ctx());
@@ -424,8 +441,16 @@ impl App {
                 let available = self.updater.release.is_some();
                 if ui
                     .small_button(
-                        RichText::new(if available { "Update" } else { "Settings" })
-                            .color(if available { ACCENT } else { TEXT }),
+                        RichText::new(if available {
+                            tr("Update")
+                        } else {
+                            tr("Settings")
+                        })
+                        .color(if available {
+                            theme::palette().accent
+                        } else {
+                            theme::palette().text
+                        }),
                     )
                     .clicked()
                 {
@@ -445,8 +470,8 @@ impl App {
         let width = (ui.available_width() - 8.0) / 2.0;
         ui.horizontal(|ui| {
             for (source, label) in [
-                (Source::Windows, "System limiter"),
-                (Source::Bridge, "Boost + leveling"),
+                (Source::Windows, tr("System limiter")),
+                (Source::Bridge, tr("Boost + leveling")),
             ] {
                 if ui
                     .add_sized(
@@ -469,23 +494,28 @@ impl App {
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
                     ui.label(
-                        RichText::new(if system { "Peak limit" } else { "Volume boost" })
-                            .size(13.0)
-                            .strong(),
+                        RichText::new(if system {
+                            tr("Peak limit")
+                        } else {
+                            tr("Volume boost")
+                        })
+                        .size(13.0)
+                        .strong(),
                     );
                     if ui
                         .add(
                             egui::Button::new(
                                 RichText::new(if system {
-                                    "System limiter".into()
+                                    tr("System limiter").into()
                                 } else {
                                     format!(
-                                        "Boost + leveling · +{:.1} dB",
+                                        "{} · +{:.1} dB",
+                                        tr("Boost + leveling"),
                                         gain_to_db(self.config.volume_percent / 100.0)
                                     )
                                 })
                                 .size(10.0)
-                                .color(MUTED),
+                                .color(theme::palette().muted),
                             )
                             .frame(false)
                             .min_size(Vec2::ZERO),
@@ -501,7 +531,11 @@ impl App {
                     } else {
                         self.config.volume_percent
                     };
-                    ui.label(RichText::new(format!("{value:.0}%")).size(32.0).color(TEXT));
+                    ui.label(
+                        RichText::new(format!("{value:.0}%"))
+                            .size(32.0)
+                            .color(theme::palette().text),
+                    );
                 });
             });
             ui.spacing_mut().slider_width = ui.available_width();
@@ -528,25 +562,30 @@ impl App {
         ui.horizontal(|ui| {
             for mode in Mode::ALL {
                 let selected = self.config.mode == mode;
-                let button =
-                    egui::Button::new(RichText::new(mode.label()).size(12.0).color(if selected {
-                        TEXT
+                let button = egui::Button::new(RichText::new(tr(mode.label())).size(12.0).color(
+                    if selected {
+                        theme::palette().text
                     } else {
-                        MUTED
-                    }))
-                    .fill(if selected { SELECTED } else { CARD })
-                    .stroke(Stroke::new(
-                        1.0_f32,
-                        if selected {
-                            ACCENT.gamma_multiply(0.6)
-                        } else {
-                            BORDER
-                        },
-                    ))
-                    .corner_radius(6);
+                        theme::palette().muted
+                    },
+                ))
+                .fill(if selected {
+                    theme::palette().selected
+                } else {
+                    theme::palette().card
+                })
+                .stroke(Stroke::new(
+                    1.0_f32,
+                    if selected {
+                        theme::palette().accent.gamma_multiply(0.6)
+                    } else {
+                        theme::palette().border
+                    },
+                ))
+                .corner_radius(6);
                 if ui
                     .add_sized([width, 28.0], button)
-                    .on_hover_text(mode.description())
+                    .on_hover_text(tr(mode.description()))
                     .clicked()
                 {
                     self.config.mode = mode;
@@ -561,9 +600,9 @@ impl App {
                 .checkbox(
                     &mut self.config.enabled,
                     if self.config.source == Source::Windows {
-                        "Peak reduction"
+                        tr("Peak reduction")
                     } else {
-                        "Leveling"
+                        tr("Leveling")
                     },
                 )
                 .changed()
@@ -575,15 +614,19 @@ impl App {
                 egui::ProgressBar::new(level)
                     .desired_width((ui.available_width() - 66.0).max(30.0))
                     .desired_height(4.0)
-                    .fill(ACCENT.gamma_multiply(0.8)),
+                    .fill(theme::palette().accent.gamma_multiply(0.8)),
             )
-            .on_hover_text(format!("Input: {:.0} dBFS", gain_to_db(self.input_level)));
+            .on_hover_text(format!(
+                "{}: {:.0} dBFS",
+                tr("Input"),
+                gain_to_db(self.input_level)
+            ));
             ui.label(
                 RichText::new(format!("−{:.1} dB", self.reduction))
                     .size(11.0)
-                    .color(MUTED),
+                    .color(theme::palette().muted),
             )
-            .on_hover_text("Current gain reduction");
+            .on_hover_text(tr("Current gain reduction"));
         });
     }
     fn audio_setup_ui(&mut self, ui: &mut egui::Ui) {
@@ -592,21 +635,21 @@ impl App {
         ui.add_enabled_ui(!running,|ui| {
             let mut changed=false;
             if bridge { ui.horizontal(|ui| {
-                ui.add_sized([66.0,24.0],egui::Label::new("Source"));
+                ui.add_sized([66.0,24.0],egui::Label::new(tr("Source")));
                 egui::ComboBox::from_id_salt("source").width(ui.available_width()-10.0)
-                    .selected_text(device_label(&self.devices,self.config.input_id.as_ref(),"Choose a source output"))
+                    .selected_text(device_label(&self.devices,self.config.input_id.as_ref(),tr("Choose a source output")))
                     .show_ui(ui,|ui| { for device in &self.devices.outputs { changed|=ui.selectable_value(&mut self.config.input_id,Some(device.id.clone()),&device.name).changed(); } });
             }); }
             ui.horizontal(|ui| {
-                ui.add_sized([66.0,24.0],egui::Label::new("Listening"));
+                ui.add_sized([66.0,24.0],egui::Label::new(tr("Listening")));
                 egui::ComboBox::from_id_salt("output").width(ui.available_width()-10.0)
-                    .selected_text(device_label(&self.devices,self.config.output_id.as_ref(),"Choose headphones or speakers"))
+                    .selected_text(device_label(&self.devices,self.config.output_id.as_ref(),tr("Choose headphones or speakers")))
                     .show_ui(ui,|ui| { for device in self.devices.outputs.iter().filter(|d|!d.cable) { changed|=ui.selectable_value(&mut self.config.output_id,Some(device.id.clone()),&device.name).changed(); } });
             });
-            ui.horizontal(|ui| {
-                if ui.small_button("Refresh devices").clicked() { if !self.preview { self.refresh_devices(); } changed=true; }
+            ui.horizontal_wrapped(|ui| {
+                if ui.small_button(tr("Refresh devices")).clicked() { if !self.preview { self.refresh_devices(); } changed=true; }
                 if bridge {
-                    changed|=ui.checkbox(&mut self.config.auto_route_browser,"Auto-route").on_hover_text("Switch this browser to Source on Start; restore its previous output on Stop/Quit.").changed();
+                    changed|=ui.checkbox(&mut self.config.auto_route_browser,tr("Auto-route")).on_hover_text(tr("Switch this browser to Source on Start; restore its previous output on Stop/Quit.")).changed();
                     egui::ComboBox::from_id_salt("browser").width(90.0).selected_text(self.config.browser.label()).show_ui(ui,|ui| {
                         for browser in routing::Browser::ALL { changed|=ui.selectable_value(&mut self.config.browser,browser,browser.label()).changed(); }
                     });
@@ -616,21 +659,21 @@ impl App {
         });
         if running {
             ui.label(
-                RichText::new("Stop processing before changing devices.")
+                RichText::new(tr("Stop processing before changing devices."))
                     .size(11.0)
-                    .color(AMBER),
+                    .color(theme::palette().amber),
             );
         }
         ui.separator();
         if !bridge {
-            ui.label(RichText::new("Driver-free peak reduction using Windows volume. Stop restores your starting level. Choose Boost + leveling for full processing and 400% gain.").size(12.0).color(MUTED));
+            ui.label(RichText::new(tr("Driver-free peak reduction using Windows volume. Stop restores your starting level. Choose Boost + leveling for full processing and 400% gain.")).size(12.0).color(theme::palette().muted));
         } else {
             ui.label(RichText::new(if self.config.auto_route_browser {
-                "Keep Source unmuted and inaudible. Start routes the browser here; Stop/Quit restores its previous output. Play audio if waiting for the browser."
+                tr("Keep Source unmuted and inaudible. Start routes the browser here; Stop/Quit restores its previous output. Play audio if waiting for the browser.")
             } else {
-                "Route the browser to Source manually in Windows Volume Mixer. Keep Source unmuted and inaudible, and restore the browser output after stopping."
-            }).size(12.0).color(MUTED));
-            if ui.small_button("Windows volume mixer").clicked()
+                tr("Route the browser to Source manually in Windows Volume Mixer. Keep Source unmuted and inaudible, and restore the browser output after stopping.")
+            }).size(12.0).color(theme::palette().muted));
+            if ui.small_button(tr("Windows volume mixer")).clicked()
                 && let Err(error) = open_mixer()
             {
                 self.error = Some(error.to_string());
@@ -638,8 +681,12 @@ impl App {
         }
         if let Some(Active::Bridge(engine)) = &self.active {
             ui.add(
-                egui::Label::new(RichText::new(&engine.description).size(10.0).color(MUTED))
-                    .truncate(),
+                egui::Label::new(
+                    RichText::new(&engine.description)
+                        .size(10.0)
+                        .color(theme::palette().muted),
+                )
+                .truncate(),
             )
             .on_hover_text(&engine.description);
         }
@@ -656,19 +703,27 @@ impl App {
         ui.horizontal(|ui| {
             ui.label(RichText::new("VB-CABLE").strong());
             ui.label(
-                RichText::new(if detected { "Detected" } else { "Not detected" })
-                    .color(if detected { ACCENT } else { MUTED }),
+                RichText::new(if detected {
+                    tr("Detected")
+                } else {
+                    tr("Not detected")
+                })
+                .color(if detected {
+                    theme::palette().accent
+                } else {
+                    theme::palette().muted
+                }),
             );
         });
-        ui.label("Optional virtual output for full leveling and 400% gain without a spare physical output.");
+        ui.label(tr("Optional virtual output for full leveling and 400% gain without a spare physical output."));
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(
                     !self.driver.busy() && !self.preview,
                     egui::Button::new(if self.driver.downloading() {
-                        "Downloading…"
+                        tr("Downloading…")
                     } else {
-                        "Download driver"
+                        tr("Download driver")
                     }),
                 )
                 .clicked()
@@ -683,9 +738,9 @@ impl App {
                         && !detected
                         && !self.is_running(),
                     egui::Button::new(if self.driver.installing() {
-                        "Installer open…"
+                        tr("Installer open…")
                     } else {
-                        "Install driver…"
+                        tr("Install driver…")
                     }),
                 )
                 .clicked()
@@ -705,30 +760,36 @@ impl App {
         if self.driver.busy() {
             ui.spinner();
         }
-        ui.label(RichText::new(self.driver.message).size(11.0).color(MUTED));
+        ui.label(
+            RichText::new(tr(self.driver.message))
+                .size(11.0)
+                .color(theme::palette().muted),
+        );
         if let Some(error) = self.driver.error.clone()
             && error_line(ui, &error)
         {
             self.notice = Some(error);
         }
-        ui.hyperlink_to("Official website & license", driver::WEBSITE);
+        ui.hyperlink_to(tr("Official website & license"), driver::WEBSITE);
         ui.separator();
-        ui.label(RichText::new("Installation opens the vendor's setup with Windows UAC. Administrator access and a Windows restart are required.").size(12.0).color(MUTED));
+        ui.label(RichText::new(tr("Installation opens the vendor's setup with Windows UAC. Administrator access and a Windows restart are required.")).size(12.0).color(theme::palette().muted));
         if self.is_running() {
             ui.label(
-                RichText::new("Stop processing before installing or changing the route.")
-                    .size(11.0)
-                    .color(AMBER),
+                RichText::new(tr(
+                    "Stop processing before installing or changing the route.",
+                ))
+                .size(11.0)
+                .color(theme::palette().amber),
             );
         }
         ui.horizontal(|ui| {
-            if ui.button("Refresh devices").clicked() {
+            if ui.button(tr("Refresh devices")).clicked() {
                 self.refresh_devices();
             }
             if ui
                 .add_enabled(
                     detected && !self.is_running() && !self.driver.busy(),
-                    egui::Button::new("Use VB-CABLE"),
+                    egui::Button::new(tr("Use VB-CABLE")),
                 )
                 .clicked()
                 && let Some(endpoint) = endpoint
@@ -739,30 +800,30 @@ impl App {
                 self.setup_page = SetupPage::Audio;
             }
         });
-        ui.label(RichText::new("After restart: Refresh devices, Use VB-CABLE, select your browser in Audio, then Start processing.").size(11.0).color(MUTED));
+        ui.label(RichText::new(tr("After restart: Refresh devices, Use VB-CABLE, select your browser in Audio, then Start processing.")).size(11.0).color(theme::palette().muted));
     }
     fn updates_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!("Installed: v{}", update::VERSION))
+                RichText::new(format!("{} v{}", tr("Installed:"), update::VERSION))
                     .size(12.0)
-                    .color(MUTED),
+                    .color(theme::palette().muted),
             );
             if ui
                 .add_enabled(
                     !self.updater.busy() && !self.driver.installing() && !self.preview,
-                    egui::Button::new("Check for updates"),
+                    egui::Button::new(tr("Check for updates")),
                 )
                 .clicked()
             {
                 self.updater.check(ui.ctx());
             }
-            ui.hyperlink_to("All releases", update::RELEASES);
+            ui.hyperlink_to(tr("All releases"), update::RELEASES);
         });
         if ui
             .checkbox(
                 &mut self.config.check_updates_on_start,
-                "Check for updates on startup",
+                tr("Check for updates on startup"),
             )
             .changed()
         {
@@ -770,25 +831,27 @@ impl App {
         }
         ui.separator();
         ui.horizontal(|ui| {
-            ui.add(egui::Label::new(&self.updater.message).truncate())
-                .on_hover_text(&self.updater.message);
+            ui.add(egui::Label::new(tr(&self.updater.message)).truncate())
+                .on_hover_text(tr(&self.updater.message));
         });
         if let Some(progress) = self.updater.progress() {
             ui.add(egui::ProgressBar::new(progress).show_percentage());
         }
         if let Some(release) = self.updater.release.clone() {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("Available: v{}", release.version)).strong());
-                ui.hyperlink_to("Release notes", release.notes_url());
+                ui.label(
+                    RichText::new(format!("{} v{}", tr("Available:"), release.version)).strong(),
+                );
+                ui.hyperlink_to(tr("Release notes"), release.notes_url());
             });
             let ready = self.updater.ready();
             let can_defer = self.install_requested && self.updater.busy();
             let label = if can_defer {
-                "Install later"
+                tr("Install later")
             } else if ready {
-                "Restart & install"
+                tr("Restart & install")
             } else {
-                "Download and install"
+                tr("Download and install")
             };
             if ui
                 .add_enabled(
@@ -809,12 +872,12 @@ impl App {
         }
         ui.label(
             RichText::new(if self.install_requested {
-                "After verification: save settings, stop audio and restart."
+                tr("After verification: save settings, stop audio and restart.")
             } else {
-                "Restart saves settings and stops processing."
+                tr("Restart saves settings and stops processing.")
             })
             .size(12.0)
-            .color(MUTED),
+            .color(theme::palette().muted),
         );
         if let Some(error) = self.updater.error.clone() {
             ui.separator();
@@ -841,27 +904,61 @@ impl App {
             self.open_settings(SetupPage::Updates, ctx);
         }
     }
+    fn appearance_ui(&mut self, ui: &mut egui::Ui) {
+        let previous = (self.config.language, self.config.theme);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("Language"));
+            egui::ComboBox::from_id_salt("interface-language")
+                .selected_text(self.config.language.name())
+                .width(112.0)
+                .show_ui(ui, |ui| {
+                    for language in i18n::Language::ALL {
+                        ui.selectable_value(&mut self.config.language, language, language.name());
+                    }
+                });
+            ui.add_space(8.0);
+            ui.label(tr("Theme"));
+            for theme in theme::Theme::ALL {
+                ui.selectable_value(&mut self.config.theme, theme, theme.label());
+            }
+        });
+        if previous != (self.config.language, self.config.theme) {
+            i18n::set_language(self.config.language);
+            theme::apply_theme(ui.ctx(), self.config.theme);
+            ui.ctx().send_viewport_cmd_to(
+                egui::ViewportId::ROOT,
+                egui::ViewportCommand::Title(tr(popup::SETTINGS_TITLE).into()),
+            );
+            ui.ctx().send_viewport_cmd_to(
+                popup::id(),
+                egui::ViewportCommand::Title(tr(popup::TITLE).into()),
+            );
+            self.changed(ui.ctx());
+        }
+    }
     fn settings_content(&mut self, ui: &mut egui::Ui) -> egui::Rect {
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Settings").size(22.0).strong());
+            ui.label(RichText::new(tr("Settings")).size(22.0).strong());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Sound controls").clicked() {
+                if ui.small_button(tr("Sound controls")).clicked() {
                     self.close_settings(ui.ctx());
                     self.show_popup(None, ui.ctx());
                 }
             });
         });
         ui.label(
-            RichText::new("Devices, optional driver and application updates.")
+            RichText::new(tr("Devices, optional driver and application updates."))
                 .size(11.0)
-                .color(MUTED),
+                .color(theme::palette().muted),
         );
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        self.appearance_ui(ui);
+        ui.add_space(8.0);
+        ui.horizontal_wrapped(|ui| {
             for (page, label) in [
-                (SetupPage::Audio, "Audio"),
-                (SetupPage::Driver, "Driver (optional)"),
-                (SetupPage::Updates, "Updates"),
+                (SetupPage::Audio, tr("Audio")),
+                (SetupPage::Driver, tr("Driver (optional)")),
+                (SetupPage::Updates, tr("Updates")),
             ] {
                 ui.selectable_value(&mut self.setup_page, page, label);
             }
@@ -880,15 +977,15 @@ impl App {
         let footer = ui.horizontal(|ui| {
             ui.label(
                 RichText::new(if self.preview {
-                    "Preview · no devices or settings are changed".into()
+                    tr("Preview · no devices or settings are changed").into()
                 } else {
                     format!("Sound Lock {}", update::VERSION)
                 })
                 .size(10.0)
-                .color(MUTED),
+                .color(theme::palette().muted),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Quit").clicked() {
+                if ui.small_button(tr("Quit")).clicked() {
                     self.action(Action::Quit, ui.ctx());
                 }
             });
@@ -902,17 +999,17 @@ impl App {
             .frame(theme::dialog())
             .show(ctx, |ui| {
                 ui.set_width(330.0);
-                ui.label(RichText::new("Needs attention").size(17.0).strong());
+                ui.label(RichText::new(tr("Needs attention")).size(17.0).strong());
                 ui.add_space(6.0);
-                let short: String = text.chars().take(440).collect();
+                let short: String = i18n::status(&text).chars().take(440).collect();
                 ui.label(short);
                 ui.add_space(10.0);
                 ui.horizontal(|ui| {
-                    if ui.button("Copy details").clicked() {
+                    if ui.button(tr("Copy details")).clicked() {
                         ui.ctx().copy_text(text.clone());
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.add(theme::primary("Close")).clicked()
+                        ui.add(theme::primary(tr("Close"))).clicked()
                     })
                     .inner
                 })
@@ -928,8 +1025,8 @@ impl App {
     }
     fn popup_content(&mut self, ui: &mut egui::Ui) -> egui::Rect {
         egui::Frame::new()
-            .fill(BG)
-            .stroke(Stroke::new(1.0_f32, BORDER))
+            .fill(theme::palette().bg)
+            .stroke(Stroke::new(1.0_f32, theme::palette().border))
             .corner_radius(12)
             .shadow(egui::Shadow {
                 offset: [0, 4],
@@ -947,19 +1044,25 @@ impl App {
                 self.meters(ui);
                 ui.horizontal(|ui| {
                     let status = if self.error.is_some() {
-                        "Audio needs attention"
+                        tr("Audio needs attention")
                     } else if self.is_running() {
-                        "Processing"
+                        tr("Processing")
                     } else {
-                        "Ready"
+                        tr("Ready")
                     };
-                    let color = if self.error.is_some() { AMBER } else { MUTED };
+                    let color = if self.error.is_some() {
+                        theme::palette().amber
+                    } else {
+                        theme::palette().muted
+                    };
                     if ui
                         .add(
                             egui::Button::new(RichText::new(status).size(11.0).color(color))
                                 .frame(false),
                         )
-                        .on_hover_text(self.error.as_deref().unwrap_or(&self.route_status))
+                        .on_hover_text(i18n::status(
+                            self.error.as_deref().unwrap_or(&self.route_status),
+                        ))
                         .clicked()
                         && let Some(error) = self.error.clone()
                     {
@@ -968,13 +1071,13 @@ impl App {
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let label = if self.is_running() {
-                            "Stop"
+                            tr("Stop")
                         } else if self.ready() {
-                            "Start"
+                            tr("Start")
                         } else {
-                            "Set up audio"
+                            tr("Set up audio")
                         };
-                        if ui.add_sized([100.0, 30.0], theme::primary(label)).clicked() {
+                        if ui.add_sized([126.0, 30.0], theme::primary(label)).clicked() {
                             if self.is_running() || self.ready() {
                                 self.toggle(ui.ctx());
                             } else {
@@ -1145,7 +1248,11 @@ impl App {
         if self.setup {
             let mut used_height = popup::SETTINGS_SIZE.y;
             egui::CentralPanel::default()
-                .frame(egui::Frame::new().fill(BG).inner_margin(18))
+                .frame(
+                    egui::Frame::new()
+                        .fill(theme::palette().bg)
+                        .inner_margin(18),
+                )
                 .show(ui, |ui| {
                     used_height = self.settings_content(ui).bottom() + 18.0;
                 });
@@ -1237,7 +1344,7 @@ impl Application {
             app.settings_ui(ui);
             (app.popup_open && !app.quitting).then(|| {
                 egui::ViewportBuilder::default()
-                    .with_title(popup::TITLE)
+                    .with_title(tr(popup::TITLE))
                     .with_decorations(false)
                     .with_resizable(false)
                     .with_taskbar(false)
@@ -1274,10 +1381,15 @@ fn error_line(ui: &mut egui::Ui, error: &str) -> bool {
     ui.horizontal(|ui| {
         ui.add_sized(
             [ui.available_width() - 62.0, 20.0],
-            egui::Label::new(RichText::new(error).size(11.0).color(AMBER)).truncate(),
+            egui::Label::new(
+                RichText::new(i18n::status(error))
+                    .size(11.0)
+                    .color(theme::palette().amber),
+            )
+            .truncate(),
         )
         .on_hover_text(error);
-        ui.small_button("Details").clicked()
+        ui.small_button(tr("Details")).clicked()
     })
     .inner
 }
@@ -1360,7 +1472,11 @@ mod tests {
             .native_pixels_per_point = Some(scale);
         let mut output = ctx.run_ui(input, |root| {
             egui::CentralPanel::default()
-                .frame(egui::Frame::new().fill(BG).inner_margin(18))
+                .frame(
+                    egui::Frame::new()
+                        .fill(theme::palette().bg)
+                        .inner_margin(18),
+                )
                 .show(root, |ui| {
                     app.settings_content(ui);
                     content = ui.min_rect();
@@ -1431,9 +1547,10 @@ mod tests {
             output
                 .shapes
                 .iter()
-                .any(|s| any_rect(&s.shape, &|r| r.stroke.color
-                    == Color32::from_rgb(91, 98, 115)
-                    && r.stroke.width > 0.0))
+                .any(
+                    |s| any_rect(&s.shape, &|r| r.stroke.color == theme::palette().border
+                        && r.stroke.width > 0.0)
+                )
         );
         click(&ctx, &mut app, target, &mut time);
         assert_eq!(app.config.source, Source::Windows);
@@ -1630,5 +1747,47 @@ mod tests {
                 );
             }
         }
+    }
+    #[test]
+    fn translated_pages_fit_and_both_themes_use_readable_surfaces() {
+        for language in i18n::Language::ALL {
+            for appearance in theme::Theme::ALL {
+                i18n::set_language(language);
+                let ctx = egui::Context::default();
+                theme::apply(&ctx);
+                theme::apply_theme(&ctx, appearance);
+                let colors = theme::palette();
+                assert_ne!(colors.bg, colors.text);
+                assert_eq!(
+                    ctx.style_of(if appearance == theme::Theme::Light {
+                        egui::Theme::Light
+                    } else {
+                        egui::Theme::Dark
+                    })
+                    .visuals
+                    .panel_fill,
+                    colors.bg
+                );
+                for page in [SetupPage::Audio, SetupPage::Driver, SetupPage::Updates] {
+                    let mut app = app();
+                    app.config.language = language;
+                    app.config.theme = appearance;
+                    app.config.source = Source::Bridge;
+                    app.setup_page = page;
+                    let mut time = 0.0;
+                    frame(&ctx, &mut app, vec![], &mut time);
+                    let (_, content, _) = frame(&ctx, &mut app, vec![], &mut time);
+                    assert!(
+                        Rect::from_min_size(Pos2::ZERO, popup::SETTINGS_SIZE)
+                            .contains_rect(content),
+                        "{} {:?}, page {}: {content:?}",
+                        language.code(),
+                        appearance,
+                        page as u8
+                    );
+                }
+            }
+        }
+        i18n::set_language(i18n::Language::English);
     }
 }

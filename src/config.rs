@@ -15,6 +15,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn existing_settings_gain_english_dark_and_preserve_audio_preferences() {
+        let previous: Config = serde_json::from_str(r#"{"volume_percent":175.0,"enabled":false,"source":"Bridge","input_id":"My cable","check_updates_on_start":false}"#).unwrap();
+        assert_eq!(previous.language, crate::i18n::Language::English);
+        assert_eq!(previous.theme, crate::theme::Theme::Dark);
+        let localized = Config {
+            language: crate::i18n::Language::Italian,
+            theme: crate::theme::Theme::Light,
+            ..previous
+        };
+        let restored: Config =
+            serde_json::from_slice(&serde_json::to_vec(&localized).unwrap()).unwrap();
+        assert_eq!(restored.language, crate::i18n::Language::Italian);
+        assert_eq!(restored.theme, crate::theme::Theme::Light);
+        assert_eq!(restored.volume_percent, 175.0);
+        assert_eq!(restored.input_id.as_deref(), Some("My cable"));
+        assert!(!restored.enabled && !restored.check_updates_on_start);
+    }
+    #[test]
     fn startup_update_preference_defaults_on_and_persists_off() {
         let previous: Config = serde_json::from_str("{}").unwrap();
         assert!(previous.check_updates_on_start);
@@ -56,6 +74,8 @@ impl Mode {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub language: crate::i18n::Language,
+    pub theme: crate::theme::Theme,
     pub mode: Mode,
     pub volume_percent: f32,
     pub enabled: bool,
@@ -78,6 +98,8 @@ pub enum Source {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            language: crate::i18n::Language::English,
+            theme: crate::theme::Theme::Dark,
             mode: Mode::Night,
             volume_percent: 100.0,
             enabled: true,
