@@ -23,6 +23,12 @@ Real application captures in preview mode, with simulated devices and no audio c
 
 ![Update settings with startup checking and in-app download and installation](docs/screenshots/update-settings.png)
 
+Light theme examples from the same application renderer:
+
+![Russian Audio settings with saved language and light theme controls](docs/screenshots/settings-light-ru.png)
+
+![French attention dialog in the light theme](docs/screenshots/dialog-light-fr.png)
+
 ## Download and run
 
 Requires **Windows 10/11 x64**. Rust, administrator access and a driver are not required to run the System limiter.
@@ -198,7 +204,7 @@ A real-window regression is available on an interactive Windows desktop:
 ./scripts/test-tray.ps1
 ```
 
-It uses preview mode with fake endpoints and no user settings writes. It exercises the actual installed tray callbacks, native visibility, toggle/dismiss, focus loss, separate Settings, minimize/restore, hidden commands and Quit. The `ui-capture` feature adds opt-in own-window PNG capture through `SOUND_LOCK_CAPTURE_TO` and `SOUND_LOCK_CAPTURE_VIEW` (`popup`, `audio`, `driver`, `updates`, `dialog`) when running with `--preview`. Production builds omit those QA features.
+It uses preview mode with fake endpoints and no user settings writes. It exercises the actual installed tray callbacks, native visibility, toggle/dismiss, focus loss, separate Settings, minimize/restore, hidden commands and Quit. The `ui-capture` feature adds opt-in own-window PNG capture through `SOUND_LOCK_CAPTURE_TO` and `SOUND_LOCK_CAPTURE_VIEW` (`popup`, `audio`, `driver`, `updates`, `dialog`) when running with `--preview`. Production builds omit those QA features. Preview-only `SOUND_LOCK_LANGUAGE` accepts `en`, `ru`, `fr`, `de`, `es` or `it`; `SOUND_LOCK_THEME=light` selects the light palette. The normal default is English/dark. Capture has an eight-second readiness deadline; wrap the disposable process in an external timeout as well.
 
 Settings: `%APPDATA%\SoundLock\settings.json`. Mode, slider values, update-check preference and stable device identifiers persist. Processing does not start automatically. Audio, Driver and Updates live in a separate, content-sized Settings window. Detail dialogs have a visible border, soft shadow and a dimmed, inactive background; close those dialogs with **Close** or Esc. The popup and Settings have no scrolling containers. There is no Sound Lock application installer, executable signing or Windows autostart yet.
 

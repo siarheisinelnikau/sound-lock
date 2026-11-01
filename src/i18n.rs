@@ -110,6 +110,38 @@ pub fn status(text: &str) -> std::borrow::Cow<'_, str> {
 }
 
 const MESSAGES: &[[&str; 6]] = &[
+    [
+        "The selected audio device is unavailable. Reconnect your headphones, then refresh the device list in Audio settings.",
+        "Выбранное аудиоустройство недоступно. Подключите наушники снова и обновите список устройств в настройках аудио.",
+        "L'appareil audio sélectionné est indisponible. Reconnectez le casque, puis actualisez les appareils dans les paramètres Audio.",
+        "Das gewählte Audiogerät ist nicht verfügbar. Kopfhörer wieder anschließen und die Geräteliste in den Audioeinstellungen aktualisieren.",
+        "El dispositivo de audio elegido no está disponible. Reconecta los auriculares y actualiza la lista en los ajustes de Audio.",
+        "Il dispositivo audio selezionato non è disponibile. Ricollega le cuffie e aggiorna l'elenco nelle impostazioni Audio.",
+    ],
+    [
+        "The driver setup task stopped unexpectedly. Please retry.",
+        "Установка драйвера неожиданно прервалась. Повторите попытку.",
+        "L'installation du pilote s'est interrompue. Réessayez.",
+        "Die Treiberinstallation wurde unerwartet beendet. Erneut versuchen.",
+        "La instalación del controlador se detuvo inesperadamente. Reintenta.",
+        "L'installazione del driver si è interrotta. Riprova.",
+    ],
+    [
+        "Download the driver package first",
+        "Сначала скачайте пакет драйвера",
+        "Téléchargez d'abord le paquet du pilote",
+        "Zuerst das Treiberpaket herunterladen",
+        "Descarga primero el paquete del controlador",
+        "Scarica prima il pacchetto del driver",
+    ],
+    [
+        "Driver package checksum does not match Pack 45. Download from the official website instead.",
+        "Контрольная сумма пакета не соответствует Pack 45. Скачайте драйвер с официального сайта.",
+        "La somme de contrôle ne correspond pas au Pack 45. Téléchargez le pilote sur le site officiel.",
+        "Die Prüfsumme entspricht nicht Pack 45. Treiber von der offiziellen Website herunterladen.",
+        "La suma de verificación no coincide con Pack 45. Descarga el controlador del sitio oficial.",
+        "La somma di controllo non corrisponde a Pack 45. Scarica il driver dal sito ufficiale.",
+    ],
     ["Language", "Язык", "Langue", "Sprache", "Idioma", "Lingua"],
     ["Theme", "Тема", "Thème", "Design", "Tema", "Tema"],
     ["Light", "Светлая", "Clair", "Hell", "Claro", "Chiaro"],
