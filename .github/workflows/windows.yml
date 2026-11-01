@@ -18,6 +18,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Provision shared updater source
+        shell: pwsh
+        run: ./scripts/provision-shared-updater.ps1
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -55,6 +58,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Provision shared updater source
+        shell: pwsh
+        run: ./scripts/provision-shared-updater.ps1
       - uses: actions/download-artifact@v8
         with:
           name: sound-lock-windows-x64
