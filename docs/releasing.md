@@ -8,15 +8,15 @@ Use the plain semantic version from the root `Cargo.toml`, without a leading `v`
 
 | Item | Format | Example |
 |---|---|---|
-| Cargo version | `VERSION` | `0.1.4` |
-| Git tag | `vVERSION` | `v0.1.4` |
-| GitHub release title | `Sound Lock vVERSION` | `Sound Lock v0.1.4` |
-| Publishing commit, first line | `Release vVERSION` | `Release v0.1.4` |
-| Standalone EXE, one architecture | `SoundLock-vVERSION.exe` | `SoundLock-v0.1.4.exe` |
-| Current Windows x64 ZIP | `sound-lock-VERSION-windows-x64.zip` | `sound-lock-0.1.4-windows-x64.zip` |
+| Cargo version | `VERSION` | `0.2.0` |
+| Git tag | `vVERSION` | `v0.2.0` |
+| GitHub release title | `Sound Lock vVERSION` | `Sound Lock v0.2.0` |
+| Publishing commit, first line | `Release vVERSION` | `Release v0.2.0` |
+| Standalone EXE, one architecture | `SoundLock-vVERSION.exe` | `SoundLock-v0.2.0.exe` |
+| Current Windows x64 ZIP | `sound-lock-VERSION-windows-x64.zip` | `sound-lock-0.2.0-windows-x64.zip` |
 | Executable inside the ZIP | `sound-lock.exe` | `sound-lock.exe` |
 | Checksum manifest | `SHA256SUMS.txt` | `SHA256SUMS.txt` |
-| Release notes source | `docs/releases/VERSION.md` | `docs/releases/0.1.4.md` |
+| Release notes source | `docs/releases/VERSION.md` | `docs/releases/0.2.0.md` |
 
 `Sound Lock` is the display name; `SoundLock` is the standalone asset prefix. Cargo's internal output remains `target/release/sound-lock.exe`. The [packaging script](../scripts/package_release.py) produces the standalone name and ZIP and writes their exact filenames into the checksum manifest. These distinct names are intentional.
 

@@ -1,8 +1,8 @@
 # Sound Lock
 
-**Steady sound for movies.** A standalone Windows tray app written in Rust, with a compact English tray popup, one main slider and Night / Headphones / Speakers profiles.
+**Steady sound for movies.** A standalone Windows tray app written in Rust, with a multilingual tray popup, one main slider and Night / Headphones / Speakers profiles.
 
-[Download the latest release](https://github.com/siarheisinelnikau/sound-lock/releases/latest) · [Release notes](https://github.com/siarheisinelnikau/sound-lock/releases/tag/v0.1.4) · [Release conventions](docs/releasing.md)
+[Download the latest release](https://github.com/siarheisinelnikau/sound-lock/releases/latest) · [Release notes](https://github.com/siarheisinelnikau/sound-lock/releases/tag/v0.2.0) · [Release conventions](docs/releasing.md)
 
 System limiter works without a browser extension, extra driver or administrator access. **Optional VB-CABLE setup is available inside the app** for full processing without a spare physical output. The two processing paths have different capabilities:
 
@@ -27,15 +27,21 @@ Real application captures in preview mode, with simulated devices and no audio c
 
 Requires **Windows 10/11 x64**. Rust, administrator access and a driver are not required to run the System limiter.
 
-| Download for v0.1.4 | Use |
+| Download for v0.2.0 | Use |
 |---|---|
-| [SoundLock-v0.1.4.exe](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/SoundLock-v0.1.4.exe) | Portable app: download and run |
-| [sound-lock-0.1.4-windows-x64.zip](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/sound-lock-0.1.4-windows-x64.zip) | Extract and run `sound-lock.exe`; includes README, screenshots and MIT license |
-| [SHA256SUMS.txt](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.1.4/SHA256SUMS.txt) | SHA-256 checksums for both downloads |
+| [SoundLock-v0.2.0.exe](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.2.0/SoundLock-v0.2.0.exe) | Portable app: download and run |
+| [sound-lock-0.2.0-windows-x64.zip](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.2.0/sound-lock-0.2.0-windows-x64.zip) | Extract and run `sound-lock.exe`; includes README, screenshots and MIT license |
+| [SHA256SUMS.txt](https://github.com/siarheisinelnikau/sound-lock/releases/download/v0.2.0/SHA256SUMS.txt) | SHA-256 checksums for both downloads |
 
-Processing starts only when you press **Start**. A left click on the tray icon toggles the 368 × 304 quick panel: volume, profiles, leveling and Start/Stop. Clicking outside or pressing Esc dismisses it while audio keeps running. **Settings** opens a separate window for Audio, Driver and Updates; closing Settings leaves the app in the tray. Right-click the icon for sound controls, settings, update checks and Quit.
+Processing starts only when you press **Start**. A left click on the tray icon toggles the 368 × 304 quick panel: volume, profiles, leveling and Start/Stop. Clicking outside or pressing Esc dismisses it while audio keeps running. **Settings** opens a separate window for language, appearance, Audio, Driver and Updates; closing Settings leaves the app in the tray. Right-click the icon for sound controls, settings, update checks and Quit.
 
-**Upgrading from 0.1.3 or earlier?** Quit the old version and download 0.1.4 manually once. The old updater cannot discover the renamed EXE. Your existing settings are preserved. Later compatible releases can be installed from **Settings > Updates**.
+**Upgrading from 0.1.3 or earlier?** Quit the old version and download the current EXE manually once. The old updater cannot discover the renamed EXE. Your existing settings are preserved. Later compatible releases can be installed from **Settings > Updates**.
+
+## Language and appearance
+
+Open **Settings** from the popup or tray menu. **Language** and **Theme** are always available above the Audio / Driver / Updates tabs. Choose **English**, **Русский**, **Français**, **Deutsch**, **Español** or **Italiano**; labels, help, status messages and tray menus change immediately. **Light** and **Dark** also apply immediately to the popup, settings, inputs and detail dialogs. Both choices are saved with your existing audio preferences; previous settings start in English and the original dark theme.
+
+Audio device names, browser names, file paths and detailed system/vendor diagnostics retain their original text. English is the complete fallback language. No restart, network translation service or recurring background work is needed to change language or appearance.
 
 ## Shared updater dependency
 
@@ -55,11 +61,11 @@ Cargo builds `target\release\sound-lock.exe`. Release packaging names the standa
 
 ## Tray workflow
 
-The normal launch opens only the quick popup near the tray icon. `sound-lock.exe --startup` starts quietly in the tray; `--settings` opens Settings instead. These switches do not register Windows autostart. The graphitic palette uses Segoe UI when installed and a muted blue accent. Popup placement stays within the work area of the tray monitor, including side/top taskbars and negative monitor coordinates.
+The normal launch opens only the quick popup near the tray icon. `sound-lock.exe --startup` starts quietly in the tray; `--settings` opens Settings instead. These switches do not register Windows autostart. Both the graphite dark palette and the light palette use Segoe UI when installed and a muted blue accent. Popup placement stays within the work area of the tray monitor, including side/top taskbars and negative monitor coordinates.
 
 ## CPU rendering in development builds
 
-The current source uses a CPU rasterizer with Windows GDI presentation, without an OpenGL or DirectX rendering backend. The popup uses per-pixel alpha and its own rounded border/shadow; Windows does not draw a second rectangular frame around it. The published 0.1.4 downloads above precede this rendering change.
+The current source uses a CPU rasterizer with Windows GDI presentation, without an OpenGL or DirectX rendering backend. The popup uses per-pixel alpha and its own rounded border/shadow; Windows does not draw a second rectangular frame around it. This renderer is included in the 0.2.0 release.
 
 The pinned software rasterizer retains its upstream [MIT](vendor/egui-software/LICENSE-MIT) / [Apache-2.0](vendor/egui-software/LICENSE-APACHE) licenses; both texts are included in newly packaged ZIP builds.
 
@@ -73,7 +79,7 @@ Click **Download and install** to download, verify and install the update, then 
 
 If the new version exits before its first UI frame, the helper restores and relaunches the previous executable. If the new process is still alive after 30 seconds, it is left running and the backup is retained. After successful startup, only known staging files are cleaned up. The portable application folder must be writable; no automatic elevation is requested. Downloads and installation/recovery files are staged in a private `.sound-lock-update-*` folder beside the app. If recovery cannot complete, keep that folder and its `previous.exe` for diagnosis or manual restoration.
 
-Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Install 0.1.4 manually when coming from 0.1.3 or earlier:** the release EXE was renamed to `SoundLock-v0.1.4.exe`, and the old updater only recognizes its old filename pattern. The new updater understands canonical names and retains historical name support. No legacy-named EXE is published for 0.1.4.
+Update trust depends on HTTPS and this GitHub repository/account: the executable is currently unsigned, and a checksum delivered by the same release is not an independent publisher signature. **Install the current version manually when coming from 0.1.3 or earlier:** the release EXE adopted the `SoundLock-vVERSION.exe` naming pattern in 0.1.4, and the older updater only recognizes its historical filename pattern. The new updater understands canonical names and retains historical name support. No legacy-named EXE alias is published.
 
 ## System limiter
 
@@ -200,7 +206,7 @@ See [architecture](docs/architecture.md), [manual checks](docs/manual-test.md) a
 
 ## Release naming and publishing
 
-Standalone downloads use **`SoundLock-vVERSION.exe`**, for example `SoundLock-v0.1.4.exe`. Add `-x64`, `-x86` or `-arm64` only when the **same release offers multiple executable architectures**. A ZIP, source archive or checksum file does not count as another architecture.
+Standalone downloads use **`SoundLock-vVERSION.exe`**, for example `SoundLock-v0.2.0.exe`. Add `-x64`, `-x86` or `-arm64` only when the **same release offers multiple executable architectures**. A ZIP, source archive or checksum file does not count as another architecture.
 
 The Git tag is `vVERSION`, the release title is `Sound Lock vVERSION`, and the publishing commit's first line is exactly `Release vVERSION`. The current ZIP format remains `sound-lock-VERSION-windows-x64.zip`; it contains `sound-lock.exe`. Keep README links, uploaded filenames, updater selection and checksums consistent.
 

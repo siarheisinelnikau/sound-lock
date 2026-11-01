@@ -691,6 +691,16 @@ impl Trace {
     }
 }
 pub fn run(startup: update::Startup) -> Result<()> {
+    #[cfg(feature = "ui-capture")]
+    if std::env::args().any(|arg| arg == "--preview")
+        && std::env::var_os("SOUND_LOCK_CAPTURE_TO").is_some()
+        && let Ok(view) = std::env::var("SOUND_LOCK_CAPTURE_VIEW")
+    {
+        anyhow::ensure!(
+            ["popup", "audio", "driver", "updates", "dialog"].contains(&view.as_str()),
+            "Unknown capture view: {view}"
+        );
+    }
     let event_loop = EventLoop::<Event>::with_user_event().build()?;
     let context = egui::Context::default();
     context.set_embed_viewports(false);

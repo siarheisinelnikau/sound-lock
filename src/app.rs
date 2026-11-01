@@ -803,7 +803,7 @@ impl App {
         ui.label(RichText::new(tr("After restart: Refresh devices, Use VB-CABLE, select your browser in Audio, then Start processing.")).size(11.0).color(theme::palette().muted));
     }
     fn updates_ui(&mut self, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(format!("{} v{}", tr("Installed:"), update::VERSION))
                     .size(12.0)
@@ -830,7 +830,7 @@ impl App {
             self.changed(ui.ctx());
         }
         ui.separator();
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.add(egui::Label::new(tr(&self.updater.message)).truncate())
                 .on_hover_text(tr(&self.updater.message));
         });
@@ -838,7 +838,7 @@ impl App {
             ui.add(egui::ProgressBar::new(progress).show_percentage());
         }
         if let Some(release) = self.updater.release.clone() {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(
                     RichText::new(format!("{} v{}", tr("Available:"), release.version)).strong(),
                 );
@@ -1379,8 +1379,9 @@ fn device_label(devices: &Devices, id: Option<&String>, fallback: &str) -> Strin
 }
 fn error_line(ui: &mut egui::Ui, error: &str) -> bool {
     ui.horizontal(|ui| {
+        let clicked = ui.small_button(tr("Details")).clicked();
         ui.add_sized(
-            [ui.available_width() - 62.0, 20.0],
+            [ui.available_width().max(0.0), 20.0],
             egui::Label::new(
                 RichText::new(i18n::status(error))
                     .size(11.0)
@@ -1389,10 +1390,11 @@ fn error_line(ui: &mut egui::Ui, error: &str) -> bool {
             .truncate(),
         )
         .on_hover_text(error);
-        ui.small_button(tr("Details")).clicked()
+        clicked
     })
     .inner
 }
+
 fn open_mixer() -> anyhow::Result<()> {
     #[cfg(windows)]
     {
@@ -1774,6 +1776,9 @@ mod tests {
                     app.config.theme = appearance;
                     app.config.source = Source::Bridge;
                     app.setup_page = page;
+                    if page == SetupPage::Updates {
+                        app.updater = update::fixture_updater(false, false);
+                    }
                     let mut time = 0.0;
                     frame(&ctx, &mut app, vec![], &mut time);
                     let (_, content, _) = frame(&ctx, &mut app, vec![], &mut time);
@@ -1784,6 +1789,34 @@ mod tests {
                         language.code(),
                         appearance,
                         page as u8
+                    );
+                }
+                for source in [Source::Windows, Source::Bridge] {
+                    let mut app = app();
+                    app.config.language = language;
+                    app.config.theme = appearance;
+                    app.config.source = source;
+                    app.error = Some("Audio device unavailable. Reconnect it, open Settings and refresh devices.".into());
+                    let mut panel = Rect::NOTHING;
+                    for _ in 0..2 {
+                        let mut output = ctx.run_ui(
+                            egui::RawInput {
+                                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, popup::SIZE)),
+                                ..Default::default()
+                            },
+                            |root| {
+                                egui::CentralPanel::default()
+                                    .frame(egui::Frame::NONE.inner_margin(10))
+                                    .show(root, |ui| panel = app.popup_content(ui));
+                            },
+                        );
+                        output.textures_delta.clear();
+                    }
+                    assert!(
+                        Rect::from_min_size(Pos2::ZERO, popup::SIZE).contains_rect(panel),
+                        "{} {:?} popup: {panel:?}",
+                        language.code(),
+                        appearance
                     );
                 }
             }

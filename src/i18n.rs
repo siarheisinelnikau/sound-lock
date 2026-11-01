@@ -40,7 +40,7 @@ impl Language {
             .into_iter()
             .find(|language| language.code() == value)
     }
-    pub fn text<'a>(self, key: &'a str) -> &'a str {
+    pub fn text(self, key: &str) -> &str {
         MESSAGES
             .iter()
             .find(|row| row[0] == key)

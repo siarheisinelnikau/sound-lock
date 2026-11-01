@@ -38,6 +38,9 @@ pub fn update(ctx: &egui::Context) -> Result<bool, String> {
             d.get_temp::<bool>(id.with("requested")).unwrap_or(false),
         )
     });
+    if started.elapsed() > Duration::from_secs(8) {
+        return Err("Framebuffer capture did not become ready within eight seconds".into());
+    }
     if !requested && started.elapsed() >= Duration::from_millis(500) {
         let context = ctx.clone();
         ctx.request_screenshot(move |image| {
