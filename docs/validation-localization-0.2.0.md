@@ -21,10 +21,12 @@ The host uses `egui_software_backend::EguiSoftwareRender` for CPU rasterization 
 
 | Preview state | PID | Sample after startup | One-core CPU | Machine CPU (20 logical processors) | Root/popup paints after 2 s warmup | Logic after warmup |
 | --- | --- | --- | --- | --- | --- | --- |
-| Visible Russian light Settings | 38784 | 5.006 s after 3 s | 0.0% | 0.0% | 0 / 0 | 0 |
-| Hidden English dark Settings | 37144 | 5.000 s after 3 s | 0.0% | 0.0% | 0 / 0 | 0 |
+| Visible Russian light Settings | 38764 | 5.007 s after 3 s | 0.0% | 0.0% | 0 / 0 | 3 |
+| Hidden English dark Settings | 1120 | 5.012 s after 3 s | 0.0% | 0.0% | 0 / 0 | 0 |
 
-Both processes exited normally after nine seconds. No OpenGL/DirectX graphics modules were observed in these preview processes; source inspection establishes the actual CPU/GDI path. GPU telemetry was unavailable. CPU timer resolution limits the reported zero values; this is an idle sample, not a broad performance benchmark.
+These final samples used the packaged standard release `SoundLock-v0.2.0.exe` (without capture features), SHA-256 `285f20d359919d987eca05dcc870762ec2e27bda5df4ea96b2ad13f6e1acd37e`. Both processes exited normally after nine seconds. The visible sample received bounded focus/OS events that caused three logic passes; unchanged scenes skipped rasterization. OS expose events may blit an existing bitmap without creating a new frame. No OpenGL/DirectX graphics modules were observed in these preview processes; source inspection establishes the actual CPU/GDI path. GPU telemetry was unavailable. CPU timer resolution limits the reported zero values; this is an idle sample, not a broad performance benchmark.
+
+The final EXE icon group was loaded as resource data without starting the app. All native 16, 20, 24, 32, 48, 64, 128 and 256 px variants had nonempty alpha bounds and rendered correctly on light/dark backgrounds through `LoadImageW`/`DrawIconEx`. This resource proof does not establish OS tray clicks or window/taskbar integration.
 
 ## Remaining manual scope
 
