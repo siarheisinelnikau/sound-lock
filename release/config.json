@@ -1,0 +1,15 @@
+{
+  "repository": "siarheisinelnikau/sound-lock",
+  "product": "SoundLock",
+  "kind": "desktop",
+  "assets": [
+    {
+      "name": "sound-lock-{version}-windows-x64.zip"
+    },
+    {
+      "name": "SoundLock-v{version}.exe"
+    }
+  ],
+  "notices": false,
+  "checksum_aliases": []
+}
